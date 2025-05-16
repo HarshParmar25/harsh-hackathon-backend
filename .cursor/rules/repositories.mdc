@@ -1,0 +1,640 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Repositories Guide
+
+This guide outlines the structure and implementation patterns for repositories in clean architecture.
+
+## Purpose
+
+Repositories in clean architecture define interfaces for data access and persistence. They:
+
+1. Abstract data access logic from business logic
+2. Define clear contracts for data operations
+3. Enable dependency inversion and testability
+4. Allow for multiple data source implementations
+5. Provide a consistent API for domain entities
+6. Handle data validation and transformation
+7. Implement caching strategies
+8. Manage transactions and rollbacks
+9. Provide audit logging
+10. Support query optimization
+
+## Repositories Layer Structure
+
+```
+feature-module/
+├── repositories/
+│   ├── baseRepository.ts           # Base repository interface
+│   ├── baseRepository.test.ts      # Test file adjacent to source
+│   └── [domain]Repository.ts       # Domain-specific repository interfaces
+│
+└── infrastructure/
+    └── repositories/
+        ├── baseRepoImpl.ts         # Base repository implementation
+        ├── baseRepoImpl.test.ts    # Test file adjacent to source
+        ├── [domain]RepoImpl.ts     # Domain-specific repository implementations
+        └── [domain]RepoImpl.test.ts # Test file adjacent to source
+```
+
+## Repository Best Practices
+
+### Interface Guidelines
+
+1. **Clear Contracts**: Define explicit method signatures and return types
+2. **Single Responsibility**: Each repository should handle one domain entity
+3. **Error Handling**: Define error types and handling strategies
+4. **Query Options**: Support pagination, sorting, and filtering
+5. **Type Safety**: Use generics for type safety
+6. **Documentation**: Document all methods and parameters
+7. **Testing**: Include test interfaces
+8. **Versioning**: Support versioning for schema changes
+
+### Implementation Guidelines
+
+1. **Error Handling**: Implement proper error handling and logging
+2. **Transaction Management**: Handle transactions properly
+3. **Caching**: Implement caching strategies
+4. **Validation**: Validate data before persistence
+5. **Performance**: Optimize queries and operations
+6. **Security**: Implement proper security measures
+7. **Logging**: Log important operations
+8. **Testing**: Write comprehensive tests
+
+### Query Guidelines
+
+1. **Pagination**: Support efficient pagination
+2. **Filtering**: Support flexible filtering
+3. **Sorting**: Support multiple sort fields
+4. **Projection**: Support field selection
+5. **Relations**: Handle entity relationships
+6. **Performance**: Optimize query performance
+7. **Security**: Prevent injection attacks
+8. **Caching**: Cache query results
+
+## Implementation Examples
+
+### 1. Base Repository Interface
+
+```typescript
+// repositories/baseRepository.ts
+
+import { Logger } from '../utils/logger';
+import { CacheService } from '../services/cacheService';
+import { ValidationError } from '../utils/errors';
+
+export interface QueryOptions {
+  page?: number;
+  limit?: number;
+  sort?: { [key: string]: 'asc' | 'desc' };
+  fields?: string[];
+  cache?: boolean;
+  ttl?: number;
+}
+
+export interface BaseRepository {
+  findOne<T>(id: string, options?: QueryOptions): Promise<T | null>;
+  findMany<T>(query: any, options?: QueryOptions): Promise<{ data: T[]; total: number }>;
+  create<T>(data: Partial<T>): Promise<T>;
+  update<T>(id: string, data: Partial<T>): Promise<T | null>;
+  delete(id: string): Promise<boolean>;
+  exists(id: string): Promise<boolean>;
+  count(query: any): Promise<number>;
+  transaction<T>(callback: (session: any) => Promise<T>): Promise<T>;
+}
+```
+
+### 2. Domain Repository Interface
+
+```typescript
+// repositories/userRepository.ts
+
+import { User } from '../domain/entities/user';
+import { BaseRepository, QueryOptions } from './baseRepository';
+import { ValidationError } from '../utils/errors';
+
+export interface UserRepository extends BaseRepository {
+  findByEmail(email: string, options?: QueryOptions): Promise<User | null>;
+  findByRole(role: string, options?: QueryOptions): Promise<User[]>;
+  updatePassword(userId: string, hashedPassword: string): Promise<boolean>;
+  verifyCredentials(email: string, password: string): Promise<User | null>;
+  findByStatus(status: string, options?: QueryOptions): Promise<User[]>;
+  updateStatus(userId: string, status: string): Promise<boolean>;
+  findInactiveUsers(options?: QueryOptions): Promise<User[]>;
+  bulkUpdate(ids: string[], data: Partial<User>): Promise<boolean>;
+}
+```
+
+### 3. Base Repository Implementation
+
+```typescript
+// infrastructure/repositories/baseRepositoryImpl.ts
+
+import { BaseRepository, QueryOptions } from '../../repositories/baseRepository';
+import { DatabaseService } from '../services/databaseService';
+import { CacheService } from '../services/cacheService';
+import { Logger } from '../utils/logger';
+import { ValidationError, DatabaseError } from '../utils/errors';
+
+export class BaseRepositoryImpl<T> implements BaseRepository {
+  protected readonly logger: Logger;
+  protected readonly cacheKey: string;
+
+  constructor(
+    protected databaseService: DatabaseService,
+    protected cacheService: CacheService,
+    protected collectionName: string
+  ) {
+    this.logger = new Logger(this.constructor.name);
+    this.cacheKey = `${collectionName}:`;
+  }
+
+  async findOne<T>(id: string, options: QueryOptions = {}): Promise<T | null> {
+    const { cache = true, ttl = 300 } = options;
+    const cacheKey = `${this.cacheKey}${id}`;
+
+    try {
+      if (cache) {
+        const cached = await this.cacheService.get<T>(cacheKey);
+        if (cached) return cached;
+      }
+
+      const result = await this.databaseService.findById(this.collectionName, id);
+      
+      if (cache && result) {
+        await this.cacheService.set(cacheKey, result, ttl);
+      }
+
+      return result as T || null;
+    } catch (error) {
+      this.logger.error('Error in findOne', { error, id });
+      throw new DatabaseError('Failed to find record', error);
+    }
+  }
+
+  async findMany<T>(query: any, options: QueryOptions = {}): Promise<{ data: T[]; total: number }> {
+    const { page = 1, limit = 10, sort, fields, cache = true, ttl = 300 } = options;
+    const skip = (page - 1) * limit;
+    const cacheKey = `${this.cacheKey}list:${JSON.stringify({ query, options })}`;
+
+    try {
+      if (cache) {
+        const cached = await this.cacheService.get<{ data: T[]; total: number }>(cacheKey);
+        if (cached) return cached;
+      }
+
+      const data = await this.databaseService.find(
+        this.collectionName,
+        query,
+        { skip, limit, sort, fields }
+      ) as T[];
+      
+      const total = await this.databaseService.count(this.collectionName, query);
+      const result = { data, total };
+
+      if (cache) {
+        await this.cacheService.set(cacheKey, result, ttl);
+      }
+
+      return result;
+    } catch (error) {
+      this.logger.error('Error in findMany', { error, query, options });
+      throw new DatabaseError('Failed to find records', error);
+    }
+  }
+
+  async create<T>(data: Partial<T>): Promise<T> {
+    try {
+      const result = await this.databaseService.create(this.collectionName, data);
+      await this.invalidateCache();
+      return result as T;
+    } catch (error) {
+      this.logger.error('Error in create', { error, data });
+      throw new DatabaseError('Failed to create record', error);
+    }
+  }
+
+  async update<T>(id: string, data: Partial<T>): Promise<T | null> {
+    try {
+      const result = await this.databaseService.update(this.collectionName, id, data);
+      await this.invalidateCache(id);
+      return result as T || null;
+    } catch (error) {
+      this.logger.error('Error in update', { error, id, data });
+      throw new DatabaseError('Failed to update record', error);
+    }
+  }
+
+  async delete(id: string): Promise<boolean> {
+    try {
+      await this.databaseService.delete(this.collectionName, id);
+      await this.invalidateCache(id);
+      return true;
+    } catch (error) {
+      this.logger.error('Error in delete', { error, id });
+      throw new DatabaseError('Failed to delete record', error);
+    }
+  }
+
+  async exists(id: string): Promise<boolean> {
+    try {
+      const result = await this.databaseService.findById(this.collectionName, id);
+      return !!result;
+    } catch (error) {
+      this.logger.error('Error in exists', { error, id });
+      throw new DatabaseError('Failed to check record existence', error);
+    }
+  }
+
+  async count(query: any): Promise<number> {
+    try {
+      return await this.databaseService.count(this.collectionName, query);
+    } catch (error) {
+      this.logger.error('Error in count', { error, query });
+      throw new DatabaseError('Failed to count records', error);
+    }
+  }
+
+  async transaction<T>(callback: (session: any) => Promise<T>): Promise<T> {
+    const session = await this.databaseService.startSession();
+    try {
+      await session.startTransaction();
+      const result = await callback(session);
+      await session.commitTransaction();
+      return result;
+    } catch (error) {
+      await session.abortTransaction();
+      this.logger.error('Transaction failed', { error });
+      throw new DatabaseError('Transaction failed', error);
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  protected async invalidateCache(id?: string): Promise<void> {
+    if (id) {
+      await this.cacheService.del(`${this.cacheKey}${id}`);
+    }
+    await this.cacheService.delPattern(`${this.cacheKey}list:*`);
+  }
+}
+```
+
+### 4. Domain Repository Implementation
+
+```typescript
+// infrastructure/repositories/userRepositoryImpl.ts
+
+import { User } from '../../domain/entities/user';
+import { UserRepository } from '../../repositories/userRepository';
+import { BaseRepositoryImpl } from './baseRepositoryImpl';
+import { DatabaseService } from '../services/databaseService';
+import { CacheService } from '../services/cacheService';
+import { PasswordService } from '../services/passwordService';
+import { Logger } from '../utils/logger';
+import { ValidationError, DatabaseError } from '../utils/errors';
+
+export class UserRepositoryImpl extends BaseRepositoryImpl<User> implements UserRepository {
+  private readonly logger: Logger;
+
+  constructor(
+    databaseService: DatabaseService,
+    cacheService: CacheService,
+    private passwordService: PasswordService
+  ) {
+    super(databaseService, cacheService, 'users');
+    this.logger = new Logger(this.constructor.name);
+  }
+
+  async findByEmail(email: string, options: QueryOptions = {}): Promise<User | null> {
+    try {
+      const { cache = true, ttl = 300 } = options;
+      const cacheKey = `${this.cacheKey}email:${email}`;
+
+      if (cache) {
+        const cached = await this.cacheService.get<User>(cacheKey);
+        if (cached) return cached;
+      }
+
+      const users = await this.databaseService.find(
+        this.collectionName,
+        { email },
+        { limit: 1 }
+      );
+      const user = users[0] as User || null;
+
+      if (cache && user) {
+        await this.cacheService.set(cacheKey, user, ttl);
+      }
+
+      return user;
+    } catch (error) {
+      this.logger.error('Error in findByEmail', { error, email });
+      throw new DatabaseError('Failed to find user by email', error);
+    }
+  }
+
+  async findByRole(role: string, options: QueryOptions = {}): Promise<User[]> {
+    try {
+      const { cache = true, ttl = 300 } = options;
+      const cacheKey = `${this.cacheKey}role:${role}`;
+
+      if (cache) {
+        const cached = await this.cacheService.get<User[]>(cacheKey);
+        if (cached) return cached;
+      }
+
+      const users = await this.databaseService.find(
+        this.collectionName,
+        { role }
+      ) as User[];
+
+      if (cache) {
+        await this.cacheService.set(cacheKey, users, ttl);
+      }
+
+      return users;
+    } catch (error) {
+      this.logger.error('Error in findByRole', { error, role });
+      throw new DatabaseError('Failed to find users by role', error);
+    }
+  }
+
+  async updatePassword(userId: string, hashedPassword: string): Promise<boolean> {
+    try {
+      await this.databaseService.update(
+        this.collectionName,
+        userId,
+        { password: hashedPassword }
+      );
+      await this.invalidateCache(userId);
+      return true;
+    } catch (error) {
+      this.logger.error('Error in updatePassword', { error, userId });
+      throw new DatabaseError('Failed to update password', error);
+    }
+  }
+
+  async verifyCredentials(email: string, password: string): Promise<User | null> {
+    try {
+      const user = await this.findByEmail(email);
+      
+      if (!user) {
+        return null;
+      }
+      
+      const passwordMatches = await this.passwordService.verify(password, user.password);
+      
+      return passwordMatches ? user : null;
+    } catch (error) {
+      this.logger.error('Error in verifyCredentials', { error, email });
+      throw new DatabaseError('Failed to verify credentials', error);
+    }
+  }
+
+  async findByStatus(status: string, options: QueryOptions = {}): Promise<User[]> {
+    try {
+      const { cache = true, ttl = 300 } = options;
+      const cacheKey = `${this.cacheKey}status:${status}`;
+
+      if (cache) {
+        const cached = await this.cacheService.get<User[]>(cacheKey);
+        if (cached) return cached;
+      }
+
+      const users = await this.databaseService.find(
+        this.collectionName,
+        { status }
+      ) as User[];
+
+      if (cache) {
+        await this.cacheService.set(cacheKey, users, ttl);
+      }
+
+      return users;
+    } catch (error) {
+      this.logger.error('Error in findByStatus', { error, status });
+      throw new DatabaseError('Failed to find users by status', error);
+    }
+  }
+
+  async updateStatus(userId: string, status: string): Promise<boolean> {
+    try {
+      await this.databaseService.update(
+        this.collectionName,
+        userId,
+        { status }
+      );
+      await this.invalidateCache(userId);
+      return true;
+    } catch (error) {
+      this.logger.error('Error in updateStatus', { error, userId, status });
+      throw new DatabaseError('Failed to update user status', error);
+    }
+  }
+
+  async findInactiveUsers(options: QueryOptions = {}): Promise<User[]> {
+    try {
+      const { cache = true, ttl = 300 } = options;
+      const cacheKey = `${this.cacheKey}inactive`;
+
+      if (cache) {
+        const cached = await this.cacheService.get<User[]>(cacheKey);
+        if (cached) return cached;
+      }
+
+      const users = await this.databaseService.find(
+        this.collectionName,
+        { lastLoginAt: { $lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } }
+      ) as User[];
+
+      if (cache) {
+        await this.cacheService.set(cacheKey, users, ttl);
+      }
+
+      return users;
+    } catch (error) {
+      this.logger.error('Error in findInactiveUsers', { error });
+      throw new DatabaseError('Failed to find inactive users', error);
+    }
+  }
+
+  async bulkUpdate(ids: string[], data: Partial<User>): Promise<boolean> {
+    try {
+      await this.databaseService.bulkUpdate(
+        this.collectionName,
+        ids,
+        data
+      );
+      await Promise.all(ids.map(id => this.invalidateCache(id)));
+      return true;
+    } catch (error) {
+      this.logger.error('Error in bulkUpdate', { error, ids, data });
+      throw new DatabaseError('Failed to bulk update users', error);
+    }
+  }
+}
+```
+
+### 5. Repository Test Example
+
+```typescript
+// infrastructure/repositories/userRepositoryImpl.test.ts
+
+import { UserRepositoryImpl } from './userRepositoryImpl';
+import { DatabaseService } from '../services/databaseService';
+import { CacheService } from '../services/cacheService';
+import { PasswordService } from '../services/passwordService';
+import { User } from '../../domain/entities/user';
+import { DatabaseError } from '../utils/errors';
+
+describe('UserRepositoryImpl', () => {
+  let userRepository: UserRepositoryImpl;
+  let mockDatabaseService: jest.Mocked<DatabaseService>;
+  let mockCacheService: jest.Mocked<CacheService>;
+  let mockPasswordService: jest.Mocked<PasswordService>;
+  
+  beforeEach(() => {
+    mockDatabaseService = {
+      find: jest.fn(),
+      findById: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+      count: jest.fn(),
+      bulkUpdate: jest.fn()
+    } as unknown as jest.Mocked<DatabaseService>;
+    
+    mockCacheService = {
+      get: jest.fn(),
+      set: jest.fn(),
+      del: jest.fn(),
+      delPattern: jest.fn()
+    } as unknown as jest.Mocked<CacheService>;
+    
+    mockPasswordService = {
+      hash: jest.fn(),
+      verify: jest.fn()
+    } as unknown as jest.Mocked<PasswordService>;
+    
+    userRepository = new UserRepositoryImpl(
+      mockDatabaseService,
+      mockCacheService,
+      mockPasswordService
+    );
+  });
+
+  describe('findByEmail', () => {
+    it('should return user when found in cache', async () => {
+      const mockUser = { id: '1', email: 'test@example.com' } as User;
+      mockCacheService.get.mockResolvedValueOnce(mockUser);
+
+      const result = await userRepository.findByEmail('test@example.com');
+
+      expect(result).toEqual(mockUser);
+      expect(mockCacheService.get).toHaveBeenCalledWith('users:email:test@example.com');
+      expect(mockDatabaseService.find).not.toHaveBeenCalled();
+    });
+
+    it('should return user from database when not in cache', async () => {
+      const mockUser = { id: '1', email: 'test@example.com' } as User;
+      mockCacheService.get.mockResolvedValueOnce(null);
+      mockDatabaseService.find.mockResolvedValueOnce([mockUser]);
+
+      const result = await userRepository.findByEmail('test@example.com');
+
+      expect(result).toEqual(mockUser);
+      expect(mockCacheService.get).toHaveBeenCalledWith('users:email:test@example.com');
+      expect(mockDatabaseService.find).toHaveBeenCalledWith(
+        'users',
+        { email: 'test@example.com' },
+        { limit: 1 }
+      );
+      expect(mockCacheService.set).toHaveBeenCalledWith(
+        'users:email:test@example.com',
+        mockUser,
+        300
+      );
+    });
+
+    it('should throw DatabaseError when database operation fails', async () => {
+      mockCacheService.get.mockResolvedValueOnce(null);
+      mockDatabaseService.find.mockRejectedValueOnce(new Error('Database error'));
+
+      await expect(userRepository.findByEmail('test@example.com'))
+        .rejects
+        .toThrow(DatabaseError);
+    });
+  });
+
+  describe('verifyCredentials', () => {
+    it('should return user when credentials are valid', async () => {
+      const mockUser = {
+        id: '1',
+        email: 'test@example.com',
+        password: 'hashedPassword'
+      } as User;
+      
+      mockCacheService.get.mockResolvedValueOnce(mockUser);
+      mockPasswordService.verify.mockResolvedValueOnce(true);
+
+      const result = await userRepository.verifyCredentials(
+        'test@example.com',
+        'password123'
+      );
+
+      expect(result).toEqual(mockUser);
+      expect(mockPasswordService.verify).toHaveBeenCalledWith(
+        'password123',
+        'hashedPassword'
+      );
+    });
+
+    it('should return null when user is not found', async () => {
+      mockCacheService.get.mockResolvedValueOnce(null);
+
+      const result = await userRepository.verifyCredentials(
+        'test@example.com',
+        'password123'
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null when password does not match', async () => {
+      const mockUser = {
+        id: '1',
+        email: 'test@example.com',
+        password: 'hashedPassword'
+      } as User;
+      
+      mockCacheService.get.mockResolvedValueOnce(mockUser);
+      mockPasswordService.verify.mockResolvedValueOnce(false);
+
+      const result = await userRepository.verifyCredentials(
+        'test@example.com',
+        'password123'
+      );
+
+      expect(result).toBeNull();
+    });
+  });
+});
+```
+
+## Testing Approach for Repositories
+
+The repository tests focus on verifying data access patterns and persistence logic.
+
+### Testing Guidelines
+
+1. **Unit Tests**: Test repository methods in isolation
+2. **Integration Tests**: Test with actual database
+3. **Error Handling**: Test error scenarios
+4. **Caching**: Test cache behavior
+5. **Transactions**: Test transaction handling
+6. **Performance**: Test query performance
+7. **Security**: Test security measures
+8. **Concurrency**: Test concurrent operations

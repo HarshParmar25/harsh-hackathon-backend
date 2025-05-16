@@ -1,0 +1,541 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Infrastructure Layer Implementation Guide
+
+This document details the architecture and patterns for implementing the infrastructure layer in a modular system.
+
+## Core Responsibilities
+
+The infrastructure layer serves as the bridge between external systems and our application core. Its primary functions include:
+
+1. Concrete implementations of abstract repositories
+2. External system integrations (databases, third-party APIs)
+3. Data transformation between external and internal formats
+4. Infrastructure concerns (caching, connection pooling, etc.)
+5. Error handling and retry mechanisms
+6. Logging and monitoring
+7. Security and authentication
+8. Performance optimization
+
+## Directory Structure
+
+```
+infrastructure/
+├── repositories/
+│   ├── baseRepository.ts
+│   ├── baseRepository.test.ts
+│   ├── [entity]Repository.ts
+│   └── [entity]Repository.test.ts
+├── services/
+│   ├── databaseService.ts
+│   ├── databaseService.test.ts
+│   ├── apiService.ts
+│   └── apiService.test.ts
+├── config/
+│   ├── databaseConfig.ts
+│   └── apiConfig.ts
+└── utils/
+    ├── retry.ts
+    ├── retry.test.ts
+    ├── logger.ts
+    └── logger.test.ts
+```
+
+## Infrastructure Layer Best Practices
+
+### Repository Guidelines
+
+1. **Interface Implementation**: Strictly implement repository interfaces
+2. **Error Handling**: Use custom error classes for infrastructure errors
+3. **Connection Management**: Properly manage database connections
+4. **Transaction Support**: Implement proper transaction handling
+5. **Query Optimization**: Optimize database queries
+6. **Caching**: Implement appropriate caching strategies
+7. **Logging**: Log important operations and errors
+8. **Testing**: Write comprehensive unit and integration tests
+
+### Service Guidelines
+
+1. **Dependency Injection**: Use constructor injection for dependencies
+2. **Configuration**: Externalize configuration
+3. **Error Handling**: Implement proper error handling and retry logic
+4. **Logging**: Log service operations and errors
+5. **Monitoring**: Implement proper monitoring
+6. **Security**: Handle security concerns
+7. **Performance**: Optimize performance
+8. **Testing**: Write comprehensive tests
+
+### Configuration Guidelines
+
+1. **Environment Variables**: Use environment variables for configuration
+2. **Type Safety**: Use typed configuration objects
+3. **Validation**: Validate configuration values
+4. **Documentation**: Document configuration options
+5. **Testing**: Test configuration loading
+6. **Security**: Handle sensitive configuration securely
+
+### Utility Guidelines
+
+1. **Reusability**: Make utilities reusable
+2. **Error Handling**: Implement proper error handling
+3. **Logging**: Log utility operations
+4. **Testing**: Write comprehensive tests
+5. **Documentation**: Document utility functions
+6. **Performance**: Optimize utility functions
+
+## Implementation Examples
+
+### 1. Repository Implementation
+
+```typescript
+// infrastructure/repositories/customerRepository.ts
+
+import { Customer } from '../../domain/entities/customer';
+import { CustomerRepository } from '../../repositories/customerRepository';
+import { CustomerMapper } from '../../mappers/customerMapper';
+import { DatabaseService } from '../services/databaseService';
+import { RepositoryError, NotFoundError } from '../errors';
+import { Logger } from '../utils/logger';
+
+/**
+ * Implementation of the CustomerRepository interface
+ */
+export class CustomerRepositoryImpl implements CustomerRepository {
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly logger: Logger
+  ) {}
+
+  /**
+   * Finds a customer by ID
+   * @throws {RepositoryError} When database operation fails
+   * @throws {NotFoundError} When customer is not found
+   */
+  async findById(id: string): Promise<Customer> {
+    try {
+      const customerData = await this.databaseService.query(
+        'SELECT * FROM customers WHERE id = ?',
+        [id]
+      );
+
+      if (!customerData?.length) {
+        throw new NotFoundError(`Customer with ID ${id} not found`);
+      }
+
+      return CustomerMapper.toDomain(customerData[0]);
+    } catch (error) {
+      this.logger.error('Failed to find customer by ID', { id, error });
+      throw new RepositoryError('Failed to find customer', error);
+    }
+  }
+
+  /**
+   * Finds a customer by phone number
+   * @throws {RepositoryError} When database operation fails
+   */
+  async findByPhone(phone: string): Promise<Customer | null> {
+    try {
+      const customerData = await this.databaseService.query(
+        'SELECT * FROM customers WHERE phone = ?',
+        [phone]
+      );
+
+      if (!customerData?.length) return null;
+      return CustomerMapper.toDomain(customerData[0]);
+    } catch (error) {
+      this.logger.error('Failed to find customer by phone', { phone, error });
+      throw new RepositoryError('Failed to find customer', error);
+    }
+  }
+
+  /**
+   * Saves a customer
+   * @throws {RepositoryError} When database operation fails
+   */
+  async save(customer: Customer): Promise<void> {
+    try {
+      const data = customer.toObject();
+      
+      await this.databaseService.query(
+        `INSERT INTO customers (id, name, phone, address, created_at, status) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          data.id,
+          data.name,
+          data.phone,
+          data.address,
+          data.createdAt,
+          data.status
+        ]
+      );
+
+      this.logger.info('Customer saved successfully', { id: data.id });
+    } catch (error) {
+      this.logger.error('Failed to save customer', { customer, error });
+      throw new RepositoryError('Failed to save customer', error);
+    }
+  }
+
+  /**
+   * Updates a customer
+   * @throws {RepositoryError} When database operation fails
+   * @throws {NotFoundError} When customer is not found
+   */
+  async update(customer: Customer): Promise<void> {
+    try {
+      const data = customer.toObject();
+      
+      const result = await this.databaseService.query(
+        `UPDATE customers 
+         SET name = ?, phone = ?, address = ?, status = ? 
+         WHERE id = ?`,
+        [
+          data.name,
+          data.phone,
+          data.address,
+          data.status,
+          data.id
+        ]
+      );
+
+      if (result.affectedRows === 0) {
+        throw new NotFoundError(`Customer with ID ${data.id} not found`);
+      }
+
+      this.logger.info('Customer updated successfully', { id: data.id });
+    } catch (error) {
+      this.logger.error('Failed to update customer', { customer, error });
+      throw new RepositoryError('Failed to update customer', error);
+    }
+  }
+
+  /**
+   * Deletes a customer
+   * @throws {RepositoryError} When database operation fails
+   * @throws {NotFoundError} When customer is not found
+   */
+  async delete(id: string): Promise<void> {
+    try {
+      const result = await this.databaseService.query(
+        'DELETE FROM customers WHERE id = ?',
+        [id]
+      );
+
+      if (result.affectedRows === 0) {
+        throw new NotFoundError(`Customer with ID ${id} not found`);
+      }
+
+      this.logger.info('Customer deleted successfully', { id });
+    } catch (error) {
+      this.logger.error('Failed to delete customer', { id, error });
+      throw new RepositoryError('Failed to delete customer', error);
+    }
+  }
+}
+```
+
+### 2. Base Repository Implementation
+
+```typescript
+// infrastructure/repositories/baseRepository.ts
+
+import { DatabaseService } from '../services/databaseService';
+import { BaseRepository } from '../../repositories/baseRepository';
+import { RepositoryError } from '../errors';
+import { Logger } from '../utils/logger';
+
+/**
+ * Base implementation for all repositories
+ */
+export class BaseRepositoryImpl implements BaseRepository {
+  constructor(
+    protected readonly databaseService: DatabaseService,
+    protected readonly logger: Logger
+  ) {}
+
+  /**
+   * Executes a query
+   * @throws {RepositoryError} When query execution fails
+   */
+  protected async executeQuery(query: string, params: any[] = []): Promise<any[]> {
+    try {
+      return await this.databaseService.query(query, params);
+    } catch (error) {
+      this.logger.error('Failed to execute query', { query, params, error });
+      throw new RepositoryError('Failed to execute query', error);
+    }
+  }
+
+  /**
+   * Executes a query with pagination
+   * @throws {RepositoryError} When query execution fails
+   */
+  protected async executeQueryWithPagination(
+    query: string, 
+    params: any[] = [], 
+    page = 1,
+    pageSize = 10
+  ): Promise<{ data: any[]; total: number }> {
+    try {
+      const offset = (page - 1) * pageSize;
+      const paginatedQuery = `${query} LIMIT ? OFFSET ?`;
+      
+      const [data, countResult] = await Promise.all([
+        this.databaseService.query(paginatedQuery, [...params, pageSize, offset]),
+        this.databaseService.query(
+          `SELECT COUNT(*) as total FROM (${query}) as subquery`,
+          params
+        )
+      ]);
+      
+      return {
+        data,
+        total: countResult[0]?.total || 0
+      };
+    } catch (error) {
+      this.logger.error('Failed to execute paginated query', { query, params, page, pageSize, error });
+      throw new RepositoryError('Failed to execute paginated query', error);
+    }
+  }
+}
+```
+
+### 3. External API Repository Example
+
+```typescript
+// infrastructure/repositories/paymentRepository.ts
+
+import { Payment } from '../../domain/entities/payment';
+import { PaymentRepository } from '../../repositories/paymentRepository';
+import { PaymentMapper } from '../../mappers/paymentMapper';
+import { ApiService } from '../services/apiService';
+import { RepositoryError, NotFoundError } from '../errors';
+import { Logger } from '../utils/logger';
+import { retry } from '../utils/retry';
+
+/**
+ * Implementation of the PaymentRepository interface
+ */
+export class PaymentRepositoryImpl implements PaymentRepository {
+  constructor(
+    private readonly apiService: ApiService,
+    private readonly logger: Logger
+  ) {}
+
+  /**
+   * Finds a payment by ID
+   * @throws {RepositoryError} When API call fails
+   * @throws {NotFoundError} When payment is not found
+   */
+  async findById(id: string): Promise<Payment> {
+    try {
+      const response = await retry(
+        () => this.apiService.get(`/payments/${id}`),
+        { maxAttempts: 3, delay: 1000 }
+      );
+
+      if (!response?.data) {
+        throw new NotFoundError(`Payment with ID ${id} not found`);
+      }
+
+      return PaymentMapper.toDomain(response.data);
+    } catch (error) {
+      this.logger.error('Failed to find payment by ID', { id, error });
+      throw new RepositoryError('Failed to find payment', error);
+    }
+  }
+
+  /**
+   * Finds all payments
+   * @throws {RepositoryError} When API call fails
+   */
+  async findAll(status?: string): Promise<Payment[]> {
+    try {
+      const params = status ? { status } : {};
+      const response = await retry(
+        () => this.apiService.get('/payments', { params }),
+        { maxAttempts: 3, delay: 1000 }
+      );
+
+      return response.data.map(PaymentMapper.toDomain);
+    } catch (error) {
+      this.logger.error('Failed to find payments', { status, error });
+      throw new RepositoryError('Failed to find payments', error);
+    }
+  }
+
+  /**
+   * Saves a payment
+   * @throws {RepositoryError} When API call fails
+   */
+  async save(payment: Payment): Promise<void> {
+    try {
+      const data = payment.toObject();
+      const endpoint = data.id ? `/payments/${data.id}` : '/payments';
+      const method = data.id ? 'put' : 'post';
+      
+      await retry(
+        () => this.apiService[method](mdc:endpoint, data),
+        { maxAttempts: 3, delay: 1000 }
+      );
+
+      this.logger.info('Payment saved successfully', { id: data.id });
+    } catch (error) {
+      this.logger.error('Failed to save payment', { payment, error });
+      throw new RepositoryError('Failed to save payment', error);
+    }
+  }
+
+  /**
+   * Deletes a payment
+   * @throws {RepositoryError} When API call fails
+   * @throws {NotFoundError} When payment is not found
+   */
+  async delete(id: string): Promise<void> {
+    try {
+      await retry(
+        () => this.apiService.delete(`/payments/${id}`),
+        { maxAttempts: 3, delay: 1000 }
+      );
+
+      this.logger.info('Payment deleted successfully', { id });
+    } catch (error) {
+      this.logger.error('Failed to delete payment', { id, error });
+      throw new RepositoryError('Failed to delete payment', error);
+    }
+  }
+}
+```
+
+### 4. Repository Test Example
+
+```typescript
+// infrastructure/repositories/customerRepository.test.ts
+
+import { CustomerRepositoryImpl } from './customerRepository';
+import { DatabaseService } from '../services/databaseService';
+import { CustomerMapper } from '../../mappers/customerMapper';
+import { Customer } from '../../domain/entities/customer';
+import { RepositoryError, NotFoundError } from '../errors';
+import { Logger } from '../utils/logger';
+
+jest.mock('../services/databaseService');
+jest.mock('../../mappers/customerMapper');
+jest.mock('../utils/logger');
+
+describe('CustomerRepositoryImpl', () => {
+  let repository: CustomerRepositoryImpl;
+  let mockDb: jest.Mocked<DatabaseService>;
+  let mockLogger: jest.Mocked<Logger>;
+  
+  beforeEach(() => {
+    mockDb = {
+      query: jest.fn()
+    } as unknown as jest.Mocked<DatabaseService>;
+    
+    mockLogger = {
+      info: jest.fn(),
+      error: jest.fn()
+    } as unknown as jest.Mocked<Logger>;
+    
+    repository = new CustomerRepositoryImpl(mockDb, mockLogger);
+    
+    (CustomerMapper.toDomain as jest.Mock).mockImplementation((data) => ({
+      id: data.id,
+      toObject: () => data
+    } as unknown as Customer));
+  });
+  
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+  
+  describe('findById', () => {
+    it('should throw NotFoundError for non-existent customer', async () => {
+      mockDb.query.mockResolvedValue([]);
+      
+      await expect(repository.findById('non-existent'))
+        .rejects
+        .toThrow(NotFoundError);
+    });
+    
+    it('should return customer when found', async () => {
+      const mockData = { id: '123', name: 'Test Customer' };
+      mockDb.query.mockResolvedValue([mockData]);
+      
+      const result = await repository.findById('123');
+      
+      expect(result).toBeDefined();
+      expect(mockDb.query).toHaveBeenCalledWith(
+        'SELECT * FROM customers WHERE id = ?',
+        ['123']
+      );
+    });
+
+    it('should throw RepositoryError when database fails', async () => {
+      mockDb.query.mockRejectedValue(new Error('DB Error'));
+      
+      await expect(repository.findById('123'))
+        .rejects
+        .toThrow(RepositoryError);
+      
+      expect(mockLogger.error).toHaveBeenCalled();
+    });
+  });
+
+  describe('save', () => {
+    it('should save customer successfully', async () => {
+      const customer = {
+        id: '123',
+        name: 'Test Customer',
+        toObject: () => ({
+          id: '123',
+          name: 'Test Customer',
+          phone: '+1234567890',
+          address: 'Test Address',
+          createdAt: new Date(),
+          status: 'active'
+        })
+      } as unknown as Customer;
+
+      await repository.save(customer);
+
+      expect(mockDb.query).toHaveBeenCalled();
+      expect(mockLogger.info).toHaveBeenCalled();
+    });
+
+    it('should throw RepositoryError when save fails', async () => {
+      const customer = {
+        id: '123',
+        toObject: () => ({ id: '123' })
+      } as unknown as Customer;
+
+      mockDb.query.mockRejectedValue(new Error('DB Error'));
+
+      await expect(repository.save(customer))
+        .rejects
+        .toThrow(RepositoryError);
+
+      expect(mockLogger.error).toHaveBeenCalled();
+    });
+  });
+});
+```
+
+## Testing Approach for Infrastructure Layer
+
+The infrastructure layer tests focus on verifying that repository implementations correctly interact with external systems such as databases and APIs.
+
+### Testing Guidelines
+
+1. **Mock External Dependencies**: Mock all external dependencies like database services and API clients
+2. **Test Repository Methods**: Test all repository methods for correct behavior
+3. **Test Error Handling**: Test how repositories handle and propagate errors
+4. **Test Edge Cases**: Test edge cases like empty results and null values
+5. **Integration Tests**: Consider separate integration tests that test against real databases/APIs
+6. **Performance Tests**: Test performance under load
+7. **Security Tests**: Test security measures
+8. **Logging Tests**: Test logging functionality

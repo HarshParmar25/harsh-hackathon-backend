@@ -1,0 +1,474 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# API Layer Implementation Guide
+
+This guide details the implementation patterns for the API layer in a modular system.
+
+## Core Responsibilities
+
+The API layer handles HTTP interactions:
+
+1. Route definitions and endpoint management
+2. Request validation and sanitization
+3. Request/response transformation
+4. Use case orchestration
+5. Error handling and logging
+6. Cross-cutting concerns (auth, logging, etc.)
+7. API documentation
+8. Rate limiting and security
+9. Performance monitoring
+10. Caching strategies
+11. Request tracing
+12. Metrics collection
+13. Health checks
+14. Circuit breaking
+15. Retry mechanisms
+
+## Directory Structure
+
+```
+api/
+├── controllers/
+│   ├── orderController.ts
+│   ├── orderController.test.ts
+│   ├── paymentController.ts
+│   └── paymentController.test.ts
+├── middlewares/
+│   ├── authMiddleware.ts
+│   ├── authMiddleware.test.ts
+│   ├── loggingMiddleware.ts
+│   ├── loggingMiddleware.test.ts
+│   ├── rateLimitMiddleware.ts
+│   ├── rateLimitMiddleware.test.ts
+│   ├── tracingMiddleware.ts
+│   ├── tracingMiddleware.test.ts
+│   ├── metricsMiddleware.ts
+│   ├── metricsMiddleware.test.ts
+│   ├── circuitBreakerMiddleware.ts
+│   └── circuitBreakerMiddleware.test.ts
+├── routes/
+│   ├── orderRoutes.ts
+│   ├── orderRoutes.test.ts
+│   ├── paymentRoutes.ts
+│   └── paymentRoutes.test.ts
+├── validation/
+│   ├── orderValidation.ts
+│   ├── orderValidation.test.ts
+│   ├── paymentValidation.ts
+│   └── paymentValidation.test.ts
+├── docs/
+│   ├── swagger.ts
+│   └── openapi.yaml
+├── config/
+│   ├── apiConfig.ts
+│   ├── rateLimitConfig.ts
+│   ├── circuitBreakerConfig.ts
+│   └── metricsConfig.ts
+├── utils/
+│   ├── responseFormatter.ts
+│   ├── errorFormatter.ts
+│   ├── tracing.ts
+│   └── metrics.ts
+├── health/
+│   ├── healthController.ts
+│   └── healthRoutes.ts
+├── index.ts
+└── app.ts
+```
+
+## API Layer Best Practices
+
+### Controller Guidelines
+
+1. **Single Responsibility**: Each controller should handle one resource
+2. **Error Handling**: Use proper error handling and custom error classes
+3. **Input Validation**: Validate all inputs before processing
+4. **Response Formatting**: Use consistent response formats
+5. **Documentation**: Document all endpoints with OpenAPI/Swagger
+6. **Testing**: Write comprehensive unit and integration tests
+7. **Logging**: Log important operations and errors
+8. **Security**: Implement proper security measures
+9. **Tracing**: Implement request tracing
+10. **Metrics**: Collect performance metrics
+11. **Circuit Breaking**: Implement circuit breaking
+12. **Retry Logic**: Implement retry mechanisms
+
+### Middleware Guidelines
+
+1. **Single Purpose**: Each middleware should have one clear purpose
+2. **Error Handling**: Handle errors properly
+3. **Performance**: Optimize middleware performance
+4. **Security**: Implement security best practices
+5. **Logging**: Log important events
+6. **Testing**: Write comprehensive tests
+7. **Documentation**: Document middleware behavior
+8. **Configuration**: Externalize configuration
+9. **Tracing**: Support request tracing
+10. **Metrics**: Collect middleware metrics
+11. **Circuit Breaking**: Support circuit breaking
+12. **Retry Logic**: Support retry mechanisms
+
+### Route Guidelines
+
+1. **RESTful Design**: Follow RESTful principles
+2. **Versioning**: Implement proper API versioning
+3. **Documentation**: Document all routes
+4. **Security**: Implement proper security measures
+5. **Validation**: Validate all inputs
+6. **Testing**: Write comprehensive tests
+7. **Performance**: Optimize route performance
+8. **Monitoring**: Implement proper monitoring
+9. **Tracing**: Support request tracing
+10. **Metrics**: Collect route metrics
+11. **Circuit Breaking**: Support circuit breaking
+12. **Retry Logic**: Support retry mechanisms
+
+### Validation Guidelines
+
+1. **Input Validation**: Validate all inputs
+2. **Type Safety**: Use proper types
+3. **Error Messages**: Provide clear error messages
+4. **Documentation**: Document validation rules
+5. **Testing**: Test all validation scenarios
+6. **Performance**: Optimize validation performance
+7. **Security**: Implement security measures
+8. **Reusability**: Make validation rules reusable
+9. **Schema Validation**: Use JSON Schema validation
+10. **Custom Validation**: Support custom validation rules
+11. **Async Validation**: Support async validation
+12. **Validation Caching**: Cache validation results
+
+## Implementation Examples
+
+### Controller Implementation
+
+```typescript
+// api/controllers/orderController.ts
+
+import { Request, Response, NextFunction } from 'express';
+import { CreateOrderRequestDto } from '../../application/useCases/createOrder/createOrderRequestDto';
+import { CreateOrderFactory } from '../../application/useCases/createOrder/createOrderFactory';
+import { GetOrderFactory } from '../../application/useCases/getOrder/getOrderFactory';
+import { GetOrderRequestDto } from '../../application/useCases/getOrder/getOrderRequestDto';
+import { ApiError } from '../utils/errorFormatter';
+import { Logger } from '../utils/logger';
+import { formatResponse } from '../utils/responseFormatter';
+import { MetricsService } from '../utils/metrics';
+import { TracingService } from '../utils/tracing';
+import { CircuitBreakerService } from '../utils/circuitBreaker';
+
+/**
+ * Controller for handling order-related requests
+ */
+export class OrderController {
+  private static readonly logger = new Logger('OrderController');
+  private static readonly metrics = new MetricsService('order_controller');
+  private static readonly tracing = new TracingService('order_controller');
+  private static readonly circuitBreaker = new CircuitBreakerService('order_controller');
+
+  /**
+   * Creates a new order
+   * @throws {ApiError} When order creation fails
+   */
+  static async createOrder(req: Request, res: Response, next: NextFunction) {
+    const span = this.tracing.startSpan('create_order');
+    try {
+      this.metrics.incrementCounter('create_order_attempt');
+
+      const dto: CreateOrderRequestDto = {
+        customerId: req.body.customerId,
+        items: req.body.items.map((item: any) => ({
+          productId: item.productId,
+          quantity: item.quantity
+        })),
+        shippingAddress: req.body.shippingAddress,
+        paymentMethod: req.body.paymentMethod
+      };
+
+      if (!this.circuitBreaker.isAvailable('create_order')) {
+        throw new ApiError('Service temporarily unavailable', { statusCode: 503 });
+      }
+
+      const { useCase } = CreateOrderFactory.create(req);
+      const result = await useCase.execute(dto);
+
+      this.logger.info('Order created successfully', { orderId: result.id });
+      this.metrics.incrementCounter('create_order_success');
+      this.metrics.recordLatency('create_order', span.getDuration());
+
+      res.status(201).json(formatResponse(result));
+    } catch (error) {
+      this.logger.error('Failed to create order', { error });
+      this.metrics.incrementCounter('create_order_error');
+      this.circuitBreaker.recordFailure('create_order');
+      next(new ApiError('Failed to create order', error));
+    } finally {
+      span.end();
+    }
+  }
+
+  /**
+   * Gets an order by ID
+   * @throws {ApiError} When order retrieval fails
+   */
+  static async getOrder(req: Request, res: Response, next: NextFunction) {
+    const span = this.tracing.startSpan('get_order');
+    try {
+      this.metrics.incrementCounter('get_order_attempt');
+
+      const dto: GetOrderRequestDto = {
+        orderId: req.params.id
+      };
+
+      if (!this.circuitBreaker.isAvailable('get_order')) {
+        throw new ApiError('Service temporarily unavailable', { statusCode: 503 });
+      }
+
+      const { useCase } = GetOrderFactory.create(req);
+      const result = await useCase.execute(dto);
+
+      if (!result) {
+        throw new ApiError('Order not found', { statusCode: 404 });
+      }
+
+      this.logger.info('Order retrieved successfully', { orderId: result.id });
+      this.metrics.incrementCounter('get_order_success');
+      this.metrics.recordLatency('get_order', span.getDuration());
+
+      res.status(200).json(formatResponse(result));
+    } catch (error) {
+      this.logger.error('Failed to get order', { error });
+      this.metrics.incrementCounter('get_order_error');
+      this.circuitBreaker.recordFailure('get_order');
+      next(new ApiError('Failed to get order', error));
+    } finally {
+      span.end();
+    }
+  }
+}
+```
+
+### Middleware Implementation
+
+```typescript
+// api/middlewares/authMiddleware.ts
+
+import { NextFunction, Request, Response } from "express";
+import { AuthServiceFactory } from "../../factory/authServiceFactory";
+import { ApiError } from "../utils/errorFormatter";
+import { Logger } from "../utils/logger";
+import { MetricsService } from "../utils/metrics";
+import { TracingService } from "../utils/tracing";
+import { CircuitBreakerService } from "../utils/circuitBreaker";
+
+/**
+ * Middleware for handling authentication
+ */
+export class AuthMiddleware {
+  private static readonly logger = new Logger('AuthMiddleware');
+  private static readonly metrics = new MetricsService('auth_middleware');
+  private static readonly tracing = new TracingService('auth_middleware');
+  private static readonly circuitBreaker = new CircuitBreakerService('auth_middleware');
+
+  /**
+   * Authenticates a user request
+   * @throws {ApiError} When authentication fails
+   */
+  static async authenticateUser(req: Request, res: Response, next: NextFunction) {
+    const span = this.tracing.startSpan('authenticate_user');
+    try {
+      this.metrics.incrementCounter('authenticate_attempt');
+
+      if (!this.circuitBreaker.isAvailable('authenticate')) {
+        throw new ApiError('Authentication service unavailable', { statusCode: 503 });
+      }
+
+      const authService = AuthServiceFactory.create();
+      const token = req.headers["authorization"]?.split(" ")[1];
+      const requestId = req.headers["x-request-id"] as string;
+
+      if (!token) {
+        throw new ApiError('Authentication token is required', { statusCode: 401 });
+      }
+
+      const user = await authService.verifyToken(token, requestId);
+      req.user = user;
+      
+      this.logger.info('User authenticated successfully', { userId: user.id });
+      this.metrics.incrementCounter('authenticate_success');
+      this.metrics.recordLatency('authenticate', span.getDuration());
+
+      next();
+    } catch (error) {
+      this.logger.error('Authentication failed', { error });
+      this.metrics.incrementCounter('authenticate_error');
+      this.circuitBreaker.recordFailure('authenticate');
+      next(new ApiError('Invalid authentication token', { statusCode: 401 }));
+    } finally {
+      span.end();
+    }
+  }
+}
+```
+
+### Route Implementation
+
+```typescript
+// api/routes/orderRoutes.ts
+
+import { Router } from 'express';
+import { OrderController } from '../controllers/orderController';
+import { orderValidation } from '../validation/orderValidation';
+import { createValidator } from 'express-joi-validation';
+import { AuthMiddleware } from '../middlewares/authMiddleware';
+import { rateLimitMiddleware } from '../middlewares/rateLimitMiddleware';
+import { tracingMiddleware } from '../middlewares/tracingMiddleware';
+import { metricsMiddleware } from '../middlewares/metricsMiddleware';
+import { circuitBreakerMiddleware } from '../middlewares/circuitBreakerMiddleware';
+import { Logger } from '../utils/logger';
+
+const router = Router();
+const validator = createValidator({ passError: true });
+const logger = new Logger('OrderRoutes');
+
+/**
+ * Order routes configuration
+ */
+router.post(
+  '/orders', 
+  rateLimitMiddleware('createOrder'),
+  tracingMiddleware('create_order'),
+  metricsMiddleware('create_order'),
+  circuitBreakerMiddleware('create_order'),
+  validator.body(orderValidation.createOrder), 
+  OrderController.createOrder
+);
+
+router.get(
+  '/orders/:id',
+  rateLimitMiddleware('getOrder'),
+  tracingMiddleware('get_order'),
+  metricsMiddleware('get_order'),
+  circuitBreakerMiddleware('get_order'),
+  validator.params(orderValidation.getOrder),
+  OrderController.getOrder
+);
+
+export default router;
+```
+
+### Validation Implementation
+
+```typescript
+// api/validation/orderValidation.ts
+
+import Joi from 'joi';
+import { ValidationError } from '../utils/errorFormatter';
+import { Logger } from '../utils/logger';
+import { MetricsService } from '../utils/metrics';
+import { TracingService } from '../utils/tracing';
+
+const logger = new Logger('OrderValidation');
+const metrics = new MetricsService('order_validation');
+const tracing = new TracingService('order_validation');
+
+const itemSchema = Joi.object({
+  productId: Joi.string().required(),
+  quantity: Joi.number().integer().min(1).required()
+});
+
+const addressSchema = Joi.object({
+  street: Joi.string().required(),
+  city: Joi.string().required(),
+  state: Joi.string().required(),
+  zipCode: Joi.string().required(),
+  country: Joi.string().required()
+});
+
+export const orderValidation = {
+  createOrder: async (req: any, res: any, next: any) => {
+    const span = tracing.startSpan('validate_create_order');
+    try {
+      metrics.incrementCounter('validate_create_order_attempt');
+
+      const schema = Joi.object({
+        customerId: Joi.string().required(),
+        items: Joi.array().items(itemSchema).min(1).required(),
+        shippingAddress: addressSchema.required(),
+        paymentMethod: Joi.string().valid('credit_card', 'paypal', 'bank_transfer').required()
+      });
+
+      const { error, value } = await schema.validateAsync(req.body, {
+        abortEarly: false,
+        stripUnknown: true
+      });
+
+      if (error) {
+        throw new ValidationError('Invalid order data', error);
+      }
+
+      req.validatedBody = value;
+      metrics.incrementCounter('validate_create_order_success');
+      metrics.recordLatency('validate_create_order', span.getDuration());
+
+      next();
+    } catch (error) {
+      logger.error('Validation failed', { error });
+      metrics.incrementCounter('validate_create_order_error');
+      next(error);
+    } finally {
+      span.end();
+    }
+  },
+
+  getOrder: async (req: any, res: any, next: any) => {
+    const span = tracing.startSpan('validate_get_order');
+    try {
+      metrics.incrementCounter('validate_get_order_attempt');
+
+      const schema = Joi.object({
+        id: Joi.string().required()
+      });
+
+      const { error, value } = await schema.validateAsync(req.params, {
+        abortEarly: false,
+        stripUnknown: true
+      });
+
+      if (error) {
+        throw new ValidationError('Invalid order ID', error);
+      }
+
+      req.validatedParams = value;
+      metrics.incrementCounter('validate_get_order_success');
+      metrics.recordLatency('validate_get_order', span.getDuration());
+
+      next();
+    } catch (error) {
+      logger.error('Validation failed', { error });
+      metrics.incrementCounter('validate_get_order_error');
+      next(error);
+    } finally {
+      span.end();
+    }
+  }
+};
+```
+
+## Testing Approach for API Layer
+
+The API layer tests focus on verifying HTTP interactions and middleware behavior.
+
+### Testing Guidelines
+
+1. **Unit Tests**: Test controllers and middleware in isolation
+2. **Integration Tests**: Test with actual HTTP requests
+3. **Error Handling**: Test error scenarios
+4. **Validation**: Test input validation
+5. **Security**: Test security measures
+6. **Performance**: Test API performance
+7. **Monitoring**: Test monitoring integration
+8. **Circuit Breaking**: Test circuit breaker behavior

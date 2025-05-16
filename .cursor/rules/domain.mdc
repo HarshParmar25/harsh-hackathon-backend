@@ -1,0 +1,389 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Domain Layer Architecture Guide
+
+This guide explains the core domain layer implementation in a modular system architecture.
+
+## Directory Organization
+
+```
+domain/
+├── constants/
+│   └── systemConstants.ts
+├── entities/
+│   ├── customerEntity.ts
+│   ├── customerEntity.test.ts
+│   ├── orderEntity.ts
+│   ├── orderEntity.test.ts
+│   ├── paymentEntity.ts
+│   └── paymentEntity.test.ts
+├── interfaces/
+│   └── domainTypes.ts
+├── events/
+│   ├── domainEvents.ts
+│   └── eventHandlers.ts
+└── services/
+    ├── authService.ts
+    ├── authService.test.ts
+    ├── cryptoService.ts
+    ├── cryptoService.test.ts
+    ├── notificationService.ts
+    └── notificationService.test.ts
+```
+
+## Core Concepts
+
+The domain layer represents the heart of your application, containing:
+
+- **Entities**: Core business objects with their properties and behaviors
+- **Interfaces**: Domain-specific types and service contracts
+- **Constants**: System-wide constants and enumerations
+- **Services**: Package-specific implementations (auth, crypto, notifications)
+- **Events**: Domain events for cross-boundary communication
+
+This layer must remain independent of external frameworks and other layers.
+
+## Domain Layer Best Practices
+
+### Entity Guidelines
+
+1. **Immutability**: Keep entities immutable using private setters and factory methods
+2. **Validation**: Implement validation in constructors and factory methods
+3. **Encapsulation**: Use private properties with public getters
+4. **Value Objects**: Use value objects for complex attributes
+5. **Factory Methods**: Use factory methods for complex object creation
+6. **Business Rules**: Keep business rules in domain objects
+7. **Documentation**: Document invariants and constraints with JSDoc
+8. **Testing**: Write comprehensive unit tests for all business rules
+
+### Service Guidelines
+
+1. **Package Isolation**: Each service should only interact with one external package
+2. **Pure Functions**: Services should be pure functions without side effects
+3. **No External Dependencies**: Services should not depend on repositories or external systems
+4. **Single Purpose**: Each service should have one clear responsibility
+5. **Interface Compliance**: All services must implement their defined interfaces
+6. **Error Handling**: Use custom domain-specific error classes
+7. **Documentation**: Document all public methods with JSDoc
+8. **Testing**: Write comprehensive unit tests for all service methods
+
+### Event Guidelines
+
+1. **Event Definition**: Define clear event interfaces with proper typing
+2. **Event Handlers**: Implement event handlers for cross-boundary communication
+3. **Event Publishing**: Use event publishing for domain state changes
+4. **Event Subscribing**: Implement proper event subscription mechanisms
+5. **Error Handling**: Handle event processing errors gracefully
+6. **Documentation**: Document event contracts and handlers
+7. **Testing**: Write comprehensive tests for event handling
+
+## Implementation Examples
+
+### 1. Entity Implementation
+
+```typescript
+// domain/entities/customerEntity.ts
+
+/**
+ * Represents a customer in the system
+ * @throws {InvalidPhoneError} When phone number format is invalid
+ * @throws {InvalidAddressError} When address format is invalid
+ */
+export interface CustomerProps {
+  id: string;
+  name: string;
+  phone: string;
+  address: string;
+  createdAt: Date;
+  status: CustomerStatus;
+}
+
+export enum CustomerStatus {
+  Active = 'active',
+  Inactive = 'inactive',
+  Suspended = 'suspended'
+}
+
+export class Customer {
+  private readonly props: CustomerProps;
+
+  private constructor(props: CustomerProps) {
+    this.validateProps(props);
+    this.props = props;
+  }
+
+  /**
+   * Creates a new customer instance
+   * @throws {InvalidPhoneError} When phone number format is invalid
+   */
+  static create(props: CustomerProps): Customer {
+    return new Customer(props);
+  }
+
+  private validateProps(props: CustomerProps): void {
+    if (!props.phone.match(/^\+?[\d\s-]{10,}$/)) {
+      throw new InvalidPhoneError('Invalid phone number format');
+    }
+    // Add more validations as needed
+  }
+
+  get id(): string {
+    return this.props.id;
+  }
+
+  get name(): string {
+    return this.props.name;
+  }
+
+  get phone(): string {
+    return this.props.phone;
+  }
+
+  get status(): CustomerStatus {
+    return this.props.status;
+  }
+
+  /**
+   * Suspends the customer account
+   * @throws {InvalidStateError} When customer is already suspended
+   */
+  suspend(): void {
+    if (this.props.status === CustomerStatus.Suspended) {
+      throw new InvalidStateError('Customer is already suspended');
+    }
+    this.props.status = CustomerStatus.Suspended;
+  }
+
+  /**
+   * Activates the customer account
+   * @throws {InvalidStateError} When customer is already active
+   */
+  activate(): void {
+    if (this.props.status === CustomerStatus.Active) {
+      throw new InvalidStateError('Customer is already active');
+    }
+    this.props.status = CustomerStatus.Active;
+  }
+
+  /**
+   * Updates the customer's phone number
+   * @throws {InvalidPhoneError} When phone number format is invalid
+   */
+  updatePhone(newPhone: string): void {
+    if (!newPhone.match(/^\+?[\d\s-]{10,}$/)) {
+      throw new InvalidPhoneError('Invalid phone number format');
+    }
+    this.props.phone = newPhone;
+  }
+
+  toObject(): CustomerProps {
+    return { ...this.props };
+  }
+}
+```
+
+### 2. Domain Types
+
+```typescript
+// domain/interfaces/domainTypes.ts
+
+/**
+ * Supported payment methods in the system
+ */
+export enum PaymentMethod {
+  CreditCard = 'credit_card',
+  BankTransfer = 'bank_transfer',
+  DigitalWallet = 'digital_wallet'
+}
+
+/**
+ * Possible order statuses in the system
+ */
+export enum OrderStatus {
+  Draft = 'draft',
+  Confirmed = 'confirmed',
+  Processing = 'processing',
+  Shipped = 'shipped',
+  Delivered = 'delivered',
+  Cancelled = 'cancelled'
+}
+
+/**
+ * Represents a physical address
+ */
+export interface Address {
+  street: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+}
+
+/**
+ * Represents payment transaction details
+ */
+export interface PaymentDetails {
+  method: PaymentMethod;
+  amount: number;
+  currency: string;
+  status: 'pending' | 'completed' | 'failed';
+  transactionId?: string;
+  timestamp: Date;
+}
+```
+
+### 3. Domain Service Implementation (Auth Service)
+
+```typescript
+// domain/services/authService.ts
+
+import { AuthService, TokenPayload } from '../../services/authService';
+import jwt from 'jsonwebtoken';
+import { RedisClient } from '../../types/redisClient';
+import { InvalidTokenError, TokenExpiredError } from './errors';
+
+/**
+ * Implementation of the authentication service
+ */
+export class AuthServiceImpl implements AuthService {
+  private readonly secret: string;
+  private readonly expiryTime: string;
+  private readonly redisClient: RedisClient;
+
+  constructor(
+    secret: string,
+    expiryTime: string = '24h',
+    redisClient: RedisClient
+  ) {
+    this.secret = secret;
+    this.expiryTime = expiryTime;
+    this.redisClient = redisClient;
+  }
+
+  /**
+   * Generates a new JWT token
+   * @throws {InvalidPayloadError} When payload is invalid
+   */
+  generateToken(payload: TokenPayload): string {
+    try {
+      return jwt.sign(payload, this.secret, { expiresIn: this.expiryTime });
+    } catch (error) {
+      throw new InvalidPayloadError('Invalid token payload');
+    }
+  }
+
+  /**
+   * Verifies a JWT token
+   * @throws {InvalidTokenError} When token is invalid
+   * @throws {TokenExpiredError} When token has expired
+   */
+  verifyToken(token: string): TokenPayload {
+    try {
+      return jwt.verify(token, this.secret) as TokenPayload;
+    } catch (error) {
+      if (error instanceof jwt.TokenExpiredError) {
+        throw new TokenExpiredError('Token has expired');
+      }
+      throw new InvalidTokenError('Invalid token');
+    }
+  }
+
+  /**
+   * Gets the expiration date of a token
+   * @throws {InvalidTokenError} When token is invalid
+   */
+  getTokenExpiration(token: string): Date {
+    try {
+      const decoded = jwt.decode(token) as { exp: number };
+      return new Date(decoded.exp * 1000);
+    } catch {
+      throw new InvalidTokenError('Invalid token');
+    }
+  }
+
+  /**
+   * Invalidates a token
+   * @throws {InvalidTokenError} When token is invalid
+   */
+  async invalidateToken(token: string): Promise<void> {
+    try {
+      const decoded = jwt.decode(token) as { exp: number };
+      const ttl = decoded.exp * 1000 - Date.now();
+      
+      await this.redisClient.set(
+        `invalidated:${token}`,
+        '1',
+        'PX',
+        ttl
+      );
+    } catch {
+      throw new InvalidTokenError('Invalid token');
+    }
+  }
+
+  /**
+   * Checks if a token is invalidated
+   * @throws {InvalidTokenError} When token is invalid
+   */
+  async isTokenInvalidated(token: string): Promise<boolean> {
+    try {
+      const result = await this.redisClient.get(`invalidated:${token}`);
+      return result !== null;
+    } catch {
+      throw new InvalidTokenError('Invalid token');
+    }
+  }
+}
+```
+
+### 4. Entity Test Example
+
+```typescript
+// domain/entities/customerEntity.test.ts
+
+import { Customer, CustomerProps, CustomerStatus } from './customerEntity';
+import { InvalidPhoneError, InvalidStateError } from './errors';
+
+describe('Customer Entity', () => {
+  const validProps: CustomerProps = {
+    id: 'cust-123',
+    name: 'John Smith',
+    phone: '+1234567890',
+    address: '123 Main St',
+    createdAt: new Date(),
+    status: CustomerStatus.Active
+  };
+
+  describe('create', () => {
+    it('should create a valid customer', () => {
+      const customer = Customer.create(validProps);
+      expect(customer).toBeInstanceOf(Customer);
+      expect(customer.id).toBe(validProps.id);
+      expect(customer.name).toBe(validProps.name);
+      expect(customer.phone).toBe(validProps.phone);
+    });
+
+    it('should throw InvalidPhoneError for invalid phone', () => {
+      const invalidProps = { ...validProps, phone: 'invalid' };
+      expect(() => Customer.create(invalidProps)).toThrow(InvalidPhoneError);
+    });
+  });
+
+  describe('status changes', () => {
+    it('should suspend an active customer', () => {
+      const customer = Customer.create(validProps);
+      customer.suspend();
+      expect(customer.status).toBe(CustomerStatus.Suspended);
+    });
+
+    it('should throw InvalidStateError when suspending already suspended customer', () => {
+      const customer = Customer.create({ ...validProps, status: CustomerStatus.Suspended });
+      expect(() => customer.suspend()).toThrow(InvalidStateError);
+    });
+  });
+});
+```
+

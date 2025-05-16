@@ -1,0 +1,714 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Service Layer Architecture Guide
+
+This guide details the implementation patterns for service interfaces and their implementations in a modular system.
+
+## Core Concepts
+
+Services in our architecture provide:
+
+1. Abstract interfaces for external system interactions
+2. Implementation isolation from business logic
+3. Dependency inversion for testing
+4. Consistent APIs for external libraries
+5. Multiple implementation support
+6. Error handling and retry mechanisms
+7. Logging and monitoring
+8. Security and authentication
+9. Performance optimization
+10. Caching strategies
+
+## Design Principles
+
+1. **Interface Definition**: Service contracts in services directory
+2. **Implementation Location**: Concrete implementations in domain/services
+3. **Pure Adapters**: Services should only adapt external functionality
+4. **Single Package**: Each service should wrap one external package
+5. **No Repositories**: Services should not use repositories
+6. **Adapter Pattern**: Services act as adapters to external systems
+7. **Dependency Injection**: Constructor-based dependency injection
+8. **Error Handling**: Proper error handling and retry mechanisms
+9. **Logging**: Comprehensive logging and monitoring
+10. **Security**: Proper security measures and authentication
+11. **Performance**: Performance optimization and caching
+12. **Testing**: Comprehensive testing and mocking
+
+## Directory Structure
+
+```
+feature-module/
+├── services/
+│   ├── authService.ts
+│   ├── securityService.ts
+│   ├── messagingService.ts
+│   ├── cacheService.ts
+│   └── monitoringService.ts
+│
+└── domain/
+    └── services/
+        ├── authServiceImpl.ts
+        ├── authServiceImpl.test.ts
+        ├── securityServiceImpl.ts
+        ├── securityServiceImpl.test.ts
+        ├── messagingServiceImpl.ts
+        ├── messagingServiceImpl.test.ts
+        ├── cacheServiceImpl.ts
+        ├── cacheServiceImpl.test.ts
+        ├── monitoringServiceImpl.ts
+        └── monitoringServiceImpl.test.ts
+```
+
+## Service Best Practices
+
+### Interface Guidelines
+
+1. **Clear Contracts**: Define explicit method signatures and return types
+2. **Single Responsibility**: Each service should handle one external system
+3. **Error Handling**: Define error types and handling strategies
+4. **Type Safety**: Use proper types and interfaces
+5. **Documentation**: Document all methods and parameters
+6. **Testing**: Include test interfaces
+7. **Versioning**: Support versioning for external APIs
+8. **Retry Logic**: Define retry strategies
+
+### Implementation Guidelines
+
+1. **Error Handling**: Implement proper error handling and retry mechanisms
+2. **Logging**: Log important operations and errors
+3. **Monitoring**: Monitor service health and performance
+4. **Security**: Implement proper security measures
+5. **Caching**: Implement caching strategies
+6. **Performance**: Optimize service operations
+7. **Testing**: Write comprehensive tests
+8. **Documentation**: Document implementation details
+
+### Security Guidelines
+
+1. **Authentication**: Implement proper authentication
+2. **Authorization**: Implement proper authorization
+3. **Encryption**: Use proper encryption
+4. **Validation**: Validate all inputs
+5. **Sanitization**: Sanitize all outputs
+6. **Audit Logging**: Log security events
+7. **Error Handling**: Handle security errors
+8. **Testing**: Test security measures
+
+## Implementation Examples
+
+### 1. Service Interface
+
+```typescript
+// services/authService.ts
+
+import { Logger } from '../utils/logger';
+import { CacheService } from './cacheService';
+import { MonitoringService } from './monitoringService';
+import { ValidationError, SecurityError } from '../utils/errors';
+
+export interface TokenPayload {
+  userId: string;
+  email: string;
+  role: string;
+  permissions?: string[];
+  metadata?: Record<string, any>;
+}
+
+export interface AuthToken {
+  token: string;
+  expiresAt: Date;
+  refreshToken?: string;
+}
+
+export interface AuthService {
+  generateToken(payload: TokenPayload): Promise<AuthToken>;
+  verifyToken(token: string): Promise<TokenPayload | null>;
+  getTokenExpiration(token: string): Promise<Date>;
+  invalidateToken(token: string): Promise<void>;
+  isTokenInvalidated(token: string): Promise<boolean>;
+  refreshToken(token: string): Promise<AuthToken>;
+  validatePermissions(token: string, requiredPermissions: string[]): Promise<boolean>;
+}
+```
+
+### 2. Service Implementation
+
+```typescript
+// domain/services/authServiceImpl.ts
+
+import { AuthService, TokenPayload, AuthToken } from '../../services/authService';
+import { CacheService } from '../../services/cacheService';
+import { MonitoringService } from '../../services/monitoringService';
+import { Logger } from '../../utils/logger';
+import { ValidationError, SecurityError } from '../../utils/errors';
+import jwt from 'jsonwebtoken';
+import { RedisClient } from '../../types/redisClient';
+
+export class AuthServiceImpl implements AuthService {
+  private readonly logger: Logger;
+  private readonly secret: string;
+  private readonly expiryTime: string;
+  private readonly refreshExpiryTime: string;
+  private readonly redisClient: RedisClient;
+  private readonly cacheService: CacheService;
+  private readonly monitoringService: MonitoringService;
+
+  constructor(
+    secret: string,
+    expiryTime: string = '24h',
+    refreshExpiryTime: string = '7d',
+    redisClient: RedisClient,
+    cacheService: CacheService,
+    monitoringService: MonitoringService
+  ) {
+    this.logger = new Logger(this.constructor.name);
+    this.secret = secret;
+    this.expiryTime = expiryTime;
+    this.refreshExpiryTime = refreshExpiryTime;
+    this.redisClient = redisClient;
+    this.cacheService = cacheService;
+    this.monitoringService = monitoringService;
+  }
+
+  async generateToken(payload: TokenPayload): Promise<AuthToken> {
+    try {
+      this.logger.info('Generating token', { userId: payload.userId });
+      this.monitoringService.incrementCounter('token_generation');
+
+      const token = jwt.sign(payload, this.secret, { expiresIn: this.expiryTime });
+      const refreshToken = jwt.sign(
+        { userId: payload.userId },
+        this.secret,
+        { expiresIn: this.refreshExpiryTime }
+      );
+
+      const expiresAt = new Date(Date.now() + this.parseExpiryTime(this.expiryTime));
+
+      const authToken: AuthToken = {
+        token,
+        refreshToken,
+        expiresAt
+      };
+
+      await this.cacheService.set(
+        `token:${payload.userId}`,
+        authToken,
+        this.parseExpiryTime(this.expiryTime)
+      );
+
+      return authToken;
+    } catch (error) {
+      this.logger.error('Failed to generate token', { error, userId: payload.userId });
+      this.monitoringService.incrementCounter('token_generation_error');
+      throw new SecurityError('Failed to generate token', error);
+    }
+  }
+
+  async verifyToken(token: string): Promise<TokenPayload | null> {
+    try {
+      this.logger.info('Verifying token');
+      this.monitoringService.incrementCounter('token_verification');
+
+      if (await this.isTokenInvalidated(token)) {
+        this.logger.warn('Token is invalidated', { token });
+        return null;
+      }
+
+      const payload = jwt.verify(token, this.secret) as TokenPayload;
+      return payload;
+    } catch (error) {
+      this.logger.error('Failed to verify token', { error });
+      this.monitoringService.incrementCounter('token_verification_error');
+      return null;
+    }
+  }
+
+  async getTokenExpiration(token: string): Promise<Date> {
+    try {
+      const decoded = jwt.decode(token) as { exp: number };
+      return new Date(decoded.exp * 1000);
+    } catch (error) {
+      this.logger.error('Failed to get token expiration', { error });
+      throw new ValidationError('Invalid token format');
+    }
+  }
+
+  async invalidateToken(token: string): Promise<void> {
+    try {
+      this.logger.info('Invalidating token');
+      this.monitoringService.incrementCounter('token_invalidation');
+
+      const decoded = jwt.decode(token) as { exp: number; userId: string };
+      const ttl = decoded.exp * 1000 - Date.now();
+      
+      await this.redisClient.set(
+        `invalidated:${token}`,
+        '1',
+        'PX',
+        ttl
+      );
+
+      await this.cacheService.del(`token:${decoded.userId}`);
+    } catch (error) {
+      this.logger.error('Failed to invalidate token', { error });
+      this.monitoringService.incrementCounter('token_invalidation_error');
+      throw new SecurityError('Failed to invalidate token', error);
+    }
+  }
+
+  async isTokenInvalidated(token: string): Promise<boolean> {
+    try {
+      const result = await this.redisClient.get(`invalidated:${token}`);
+      return result !== null;
+    } catch (error) {
+      this.logger.error('Failed to check token invalidation', { error });
+      return false;
+    }
+  }
+
+  async refreshToken(token: string): Promise<AuthToken> {
+    try {
+      this.logger.info('Refreshing token');
+      this.monitoringService.incrementCounter('token_refresh');
+
+      const decoded = jwt.decode(token) as { userId: string };
+      const user = await this.getUserById(decoded.userId);
+
+      if (!user) {
+        throw new ValidationError('User not found');
+      }
+
+      return this.generateToken({
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        permissions: user.permissions
+      });
+    } catch (error) {
+      this.logger.error('Failed to refresh token', { error });
+      this.monitoringService.incrementCounter('token_refresh_error');
+      throw new SecurityError('Failed to refresh token', error);
+    }
+  }
+
+  async validatePermissions(token: string, requiredPermissions: string[]): Promise<boolean> {
+    try {
+      const payload = await this.verifyToken(token);
+      
+      if (!payload || !payload.permissions) {
+        return false;
+      }
+
+      return requiredPermissions.every(permission =>
+        payload.permissions!.includes(permission)
+      );
+    } catch (error) {
+      this.logger.error('Failed to validate permissions', { error });
+      return false;
+    }
+  }
+
+  private parseExpiryTime(expiryTime: string): number {
+    const unit = expiryTime.slice(-1);
+    const value = parseInt(expiryTime.slice(0, -1));
+
+    switch (unit) {
+      case 's': return value * 1000;
+      case 'm': return value * 60 * 1000;
+      case 'h': return value * 60 * 60 * 1000;
+      case 'd': return value * 24 * 60 * 60 * 1000;
+      default: return 24 * 60 * 60 * 1000; // Default to 24 hours
+    }
+  }
+
+  private async getUserById(userId: string): Promise<any> {
+    // Implementation to get user from database or cache
+    return null;
+  }
+}
+```
+
+### 3. Security Service Example
+
+```typescript
+// services/securityService.ts
+
+import { Logger } from '../utils/logger';
+import { CacheService } from './cacheService';
+import { MonitoringService } from './monitoringService';
+import { ValidationError, SecurityError } from '../utils/errors';
+
+export interface SecurityService {
+  encrypt(data: string): Promise<string>;
+  decrypt(encryptedData: string): Promise<string>;
+  hash(data: string): Promise<string>;
+  verifyHash(plaintext: string, hash: string): Promise<boolean>;
+  generateSecureRandom(length: number): Promise<string>;
+  validatePassword(password: string): Promise<boolean>;
+  sanitizeInput(input: string): string;
+  validateEncryptionKey(key: string): boolean;
+}
+```
+
+```typescript
+// domain/services/securityServiceImpl.ts
+
+import { SecurityService } from '../../services/securityService';
+import { CacheService } from '../../services/cacheService';
+import { MonitoringService } from '../../services/monitoringService';
+import { Logger } from '../../utils/logger';
+import { ValidationError, SecurityError } from '../../utils/errors';
+import * as crypto from 'crypto';
+import * as bcrypt from 'bcrypt';
+import { z } from 'zod';
+
+export class SecurityServiceImpl implements SecurityService {
+  private readonly logger: Logger;
+  private readonly algorithm: string;
+  private readonly key: Buffer;
+  private readonly saltRounds: number;
+  private readonly cacheService: CacheService;
+  private readonly monitoringService: MonitoringService;
+
+  constructor(
+    keyString: string,
+    algorithm: string = 'aes-256-gcm',
+    saltRounds: number = 12,
+    cacheService: CacheService,
+    monitoringService: MonitoringService
+  ) {
+    this.logger = new Logger(this.constructor.name);
+    this.algorithm = algorithm;
+    this.key = Buffer.from(keyString, 'hex');
+    this.saltRounds = saltRounds;
+    this.cacheService = cacheService;
+    this.monitoringService = monitoringService;
+
+    if (!this.validateEncryptionKey(keyString)) {
+      throw new SecurityError('Invalid encryption key');
+    }
+  }
+
+  async encrypt(data: string): Promise<string> {
+    try {
+      this.logger.info('Encrypting data');
+      this.monitoringService.incrementCounter('encryption');
+
+      const iv = crypto.randomBytes(16);
+      const cipher = crypto.createCipheriv(this.algorithm, this.key, iv);
+      
+      let encrypted = cipher.update(data, 'utf8', 'hex');
+      encrypted += cipher.final('hex');
+      
+      const authTag = cipher.getAuthTag();
+      
+      const result = `${iv.toString('hex')}:${encrypted}:${authTag.toString('hex')}`;
+      
+      await this.cacheService.set(
+        `encrypted:${this.hashData(data)}`,
+        result,
+        3600 // Cache for 1 hour
+      );
+
+      return result;
+    } catch (error) {
+      this.logger.error('Failed to encrypt data', { error });
+      this.monitoringService.incrementCounter('encryption_error');
+      throw new SecurityError('Failed to encrypt data', error);
+    }
+  }
+
+  async decrypt(encryptedData: string): Promise<string> {
+    try {
+      this.logger.info('Decrypting data');
+      this.monitoringService.incrementCounter('decryption');
+
+      const [ivHex, encryptedText, authTagHex] = encryptedData.split(':');
+      const iv = Buffer.from(ivHex, 'hex');
+      const authTag = Buffer.from(authTagHex, 'hex');
+      
+      const decipher = crypto.createDecipheriv(this.algorithm, this.key, iv);
+      decipher.setAuthTag(authTag);
+      
+      let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+      
+      return decrypted;
+    } catch (error) {
+      this.logger.error('Failed to decrypt data', { error });
+      this.monitoringService.incrementCounter('decryption_error');
+      throw new SecurityError('Failed to decrypt data', error);
+    }
+  }
+
+  async hash(data: string): Promise<string> {
+    try {
+      this.logger.info('Hashing data');
+      this.monitoringService.incrementCounter('hashing');
+
+      const hash = await bcrypt.hash(data, this.saltRounds);
+      
+      await this.cacheService.set(
+        `hash:${this.hashData(data)}`,
+        hash,
+        3600 // Cache for 1 hour
+      );
+
+      return hash;
+    } catch (error) {
+      this.logger.error('Failed to hash data', { error });
+      this.monitoringService.incrementCounter('hashing_error');
+      throw new SecurityError('Failed to hash data', error);
+    }
+  }
+
+  async verifyHash(plaintext: string, hash: string): Promise<boolean> {
+    try {
+      this.logger.info('Verifying hash');
+      this.monitoringService.incrementCounter('hash_verification');
+
+      const cachedHash = await this.cacheService.get<string>(`hash:${this.hashData(plaintext)}`);
+      
+      if (cachedHash && cachedHash === hash) {
+        return true;
+      }
+
+      return bcrypt.compare(plaintext, hash);
+    } catch (error) {
+      this.logger.error('Failed to verify hash', { error });
+      this.monitoringService.incrementCounter('hash_verification_error');
+      return false;
+    }
+  }
+
+  async generateSecureRandom(length: number): Promise<string> {
+    try {
+      this.logger.info('Generating secure random');
+      this.monitoringService.incrementCounter('secure_random_generation');
+
+      return crypto.randomBytes(length).toString('hex');
+    } catch (error) {
+      this.logger.error('Failed to generate secure random', { error });
+      this.monitoringService.incrementCounter('secure_random_generation_error');
+      throw new SecurityError('Failed to generate secure random', error);
+    }
+  }
+
+  async validatePassword(password: string): Promise<boolean> {
+    try {
+      const passwordSchema = z.string()
+        .min(8)
+        .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+        .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+        .regex(/[0-9]/, 'Password must contain at least one number')
+        .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character');
+
+      passwordSchema.parse(password);
+      return true;
+    } catch (error) {
+      this.logger.error('Password validation failed', { error });
+      return false;
+    }
+  }
+
+  sanitizeInput(input: string): string {
+    return input
+      .replace(/[<>]/g, '') // Remove < and >
+      .replace(/javascript:/gi, '') // Remove javascript: protocol
+      .replace(/on\w+=/gi, '') // Remove on* attributes
+      .trim();
+  }
+
+  validateEncryptionKey(key: string): boolean {
+    return /^[0-9a-f]{64}$/i.test(key);
+  }
+
+  private hashData(data: string): string {
+    return crypto.createHash('sha256').update(data).digest('hex');
+  }
+}
+```
+
+### 4. Service Factory
+
+```typescript
+// factory/authServiceFactory.ts
+
+import { AuthService } from '../services/authService';
+import { AuthServiceImpl } from '../domain/services/authServiceImpl';
+import { CacheService } from '../services/cacheService';
+import { MonitoringService } from '../services/monitoringService';
+import { RedisClient } from '../types/redisClient';
+import { createRedisClient } from '../infrastructure/redis/redisClientFactory';
+import { Logger } from '../utils/logger';
+
+export class AuthServiceFactory {
+  static create(config: { 
+    secret: string,
+    expiryTime?: string,
+    refreshExpiryTime?: string,
+    redisUrl?: string,
+    cacheService: CacheService,
+    monitoringService: MonitoringService
+  }): AuthService {
+    const logger = new Logger('AuthServiceFactory');
+    const redisClient = createRedisClient(
+      config.redisUrl || 'redis://localhost:6379'
+    );
+    
+    logger.info('Creating AuthService instance');
+    
+    return new AuthServiceImpl(
+      config.secret,
+      config.expiryTime,
+      config.refreshExpiryTime,
+      redisClient,
+      config.cacheService,
+      config.monitoringService
+    );
+  }
+}
+```
+
+### 5. Service Test
+
+```typescript
+// domain/services/authServiceImpl.test.ts
+
+import { AuthServiceImpl } from './authServiceImpl';
+import { TokenPayload, AuthToken } from '../../services/authService';
+import { CacheService } from '../../services/cacheService';
+import { MonitoringService } from '../../services/monitoringService';
+import { Logger } from '../../utils/logger';
+import { SecurityError } from '../../utils/errors';
+import jwt from 'jsonwebtoken';
+import { RedisClient } from '../../types/redisClient';
+
+describe('AuthServiceImpl', () => {
+  let service: AuthServiceImpl;
+  let mockRedis: jest.Mocked<RedisClient>;
+  let mockCache: jest.Mocked<CacheService>;
+  let mockMonitoring: jest.Mocked<MonitoringService>;
+  
+  const testSecret = 'test-secret';
+  const testExpiry = '1h';
+  const testRefreshExpiry = '7d';
+  
+  beforeEach(() => {
+    mockRedis = {
+      set: jest.fn(),
+      get: jest.fn(),
+      del: jest.fn()
+    } as unknown as jest.Mocked<RedisClient>;
+    
+    mockCache = {
+      set: jest.fn(),
+      get: jest.fn(),
+      del: jest.fn()
+    } as unknown as jest.Mocked<CacheService>;
+    
+    mockMonitoring = {
+      incrementCounter: jest.fn()
+    } as unknown as jest.Mocked<MonitoringService>;
+    
+    service = new AuthServiceImpl(
+      testSecret,
+      testExpiry,
+      testRefreshExpiry,
+      mockRedis,
+      mockCache,
+      mockMonitoring
+    );
+  });
+
+  describe('generateToken', () => {
+    it('should generate valid token', async () => {
+      const payload: TokenPayload = {
+        userId: '123',
+        email: 'test@example.com',
+        role: 'user'
+      };
+
+      const result = await service.generateToken(payload);
+
+      expect(result.token).toBeDefined();
+      expect(result.refreshToken).toBeDefined();
+      expect(result.expiresAt).toBeInstanceOf(Date);
+      expect(mockCache.set).toHaveBeenCalled();
+      expect(mockMonitoring.incrementCounter).toHaveBeenCalledWith('token_generation');
+    });
+
+    it('should throw SecurityError on failure', async () => {
+      const payload: TokenPayload = {
+        userId: '123',
+        email: 'test@example.com',
+        role: 'user'
+      };
+
+      mockCache.set.mockRejectedValueOnce(new Error('Cache error'));
+
+      await expect(service.generateToken(payload))
+        .rejects
+        .toThrow(SecurityError);
+      
+      expect(mockMonitoring.incrementCounter)
+        .toHaveBeenCalledWith('token_generation_error');
+    });
+  });
+
+  describe('verifyToken', () => {
+    it('should verify valid token', async () => {
+      const payload: TokenPayload = {
+        userId: '123',
+        email: 'test@example.com',
+        role: 'user'
+      };
+
+      const token = jwt.sign(payload, testSecret, { expiresIn: testExpiry });
+      mockRedis.get.mockResolvedValueOnce(null);
+
+      const result = await service.verifyToken(token);
+
+      expect(result).toEqual(payload);
+      expect(mockMonitoring.incrementCounter)
+        .toHaveBeenCalledWith('token_verification');
+    });
+
+    it('should return null for invalid token', async () => {
+      const result = await service.verifyToken('invalid-token');
+
+      expect(result).toBeNull();
+      expect(mockMonitoring.incrementCounter)
+        .toHaveBeenCalledWith('token_verification_error');
+    });
+
+    it('should return null for invalidated token', async () => {
+      const token = jwt.sign({ userId: '123' }, testSecret);
+      mockRedis.get.mockResolvedValueOnce('1');
+
+      const result = await service.verifyToken(token);
+
+      expect(result).toBeNull();
+    });
+  });
+});
+```
+
+## Testing Approach for Services
+
+The service tests focus on verifying external system interactions and security measures.
+
+### Testing Guidelines
+
+1. **Unit Tests**: Test service methods in isolation
+2. **Integration Tests**: Test with actual external systems
+3. **Error Handling**: Test error scenarios
+4. **Security**: Test security measures
+5. **Performance**: Test service performance
+6. **Caching**: Test cache behavior
+7. **Monitoring**: Test monitoring integration
+8. **Concurrency**: Test concurrent operations
+

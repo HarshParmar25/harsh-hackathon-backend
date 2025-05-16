@@ -1,0 +1,159 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Project Best Practices
+
+## Common Best Practices
+
+### Code Style & Documentation
+
+- Use TypeScript strict mode
+- Document public interfaces and complex functions with JSDoc
+- Keep functions small and focused (max 20-30 lines)
+- Use meaningful variable/function names (no abbreviations)
+- Add TODO comments for future improvements
+- Document complex business logic with inline comments
+- Use prettier for consistent formatting
+- Follow conventional commits (feat:, fix:, chore:, etc.)
+- Use consistent naming conventions:
+  - PascalCase for classes, interfaces, types, and enums
+  - camelCase for variables, functions, and methods
+  - UPPER_SNAKE_CASE for constants
+  - camelCase for file names
+
+### Error Handling
+
+- Use custom error classes for domain-specific errors
+- Always include error context in error messages
+- Log errors with appropriate severity levels
+- Handle async errors with try/catch
+- Provide meaningful error responses in API endpoints
+- Implement proper error recovery strategies
+- Use error middleware for centralized error handling
+- Include stack traces in development, not production
+
+### Performance
+
+- Implement proper database indexing
+- Use connection pooling
+- Cache frequently accessed data
+- Implement rate limiting
+- Use pagination for large data sets
+- Optimize database queries
+- Use proper transaction management
+- Implement proper caching strategies
+- Use compression for responses
+- Implement proper logging levels
+
+### Security
+
+- Never store sensitive data in plain text
+- Sanitize user inputs
+- Use environment variables for secrets
+- Implement proper CORS policies
+- Use HTTPS for all endpoints
+- Validate all request data
+- Implement rate limiting
+- Use proper authentication and authorization
+- Sanitize database queries
+- Implement proper session management
+- Use secure headers
+- Implement request validation
+- Use proper password hashing
+- Implement API key rotation
+- Use proper SSL/TLS configuration
+
+## Architecture Best Practices
+
+### Domain Layer
+
+- Keep entities immutable
+- Use value objects for complex attributes
+- Implement validation in constructors
+- Use factory methods for complex object creation
+- Keep business rules in domain objects
+- Document invariants and constraints
+- Use domain events for cross-boundary communication
+- Implement proper domain service interfaces
+
+### Application Layer
+
+- Use interfaces for dependencies
+- Implement command/query separation
+- Keep services stateless
+- Use DTOs for data transfer
+- Document service methods
+- Handle all possible error cases
+- Implement proper transaction management
+- Use proper dependency injection
+- Implement proper middleware
+- Use proper routing strategies
+
+### Infrastructure Layer
+
+- Implement retry logic for external calls
+- Cache expensive operations
+- Use dependency injection
+- Implement proper logging
+- Handle network errors gracefully
+- Document API endpoints
+- Use proper connection pooling
+- Implement proper caching strategies
+- Use proper database migrations
+- Implement proper monitoring
+- Use proper health checks
+- Implement proper backup strategies
+
+### API Layer
+
+- Use proper HTTP status codes
+- Implement proper API versioning
+- Use proper request validation
+- Implement proper response formatting
+- Use proper API documentation
+- Implement proper rate limiting
+- Use proper authentication
+- Implement proper authorization
+- Use proper error handling
+- Implement proper logging
+
+## Testing Best Practices
+
+### Unit Tests
+
+- Test one thing per test
+- Use descriptive test names
+- Follow AAA pattern (Arrange, Act, Assert)
+- Mock external dependencies
+- Test edge cases and error scenarios
+- Keep tests independent
+- Use proper test coverage
+- Implement proper test isolation
+- Test business logic thoroughly
+- Mock database calls
+
+### Integration Tests
+
+- Test complete features
+- Use test databases
+- Clean up after tests
+- Mock external services
+- Test happy and error paths
+- Document test scenarios
+- Use proper test data
+- Implement proper test setup
+- Test API endpoints
+- Test database operations
+
+### E2E Tests
+
+- Test critical API flows
+- Use realistic test data
+- Test on multiple environments
+- Document test scenarios
+- Use proper test reporting
+- Use proper test environment setup
+- Test security measures
+- Test performance requirements

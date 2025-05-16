@@ -1,0 +1,415 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Application Layer Architecture Guide
+
+This guide explains the implementation patterns for the application layer in a modular system.
+
+## Directory Structure
+
+```
+application/
+├── useCases/
+│   ├── createOrder/
+│   │   ├── createOrder.ts
+│   │   ├── createOrder.test.ts
+│   │   ├── createOrderFactory.ts
+│   │   ├── createOrderFactory.test.ts
+│   │   ├── createOrderMapper.ts
+│   │   ├── createOrderMapper.test.ts
+│   │   ├── createOrderRequest.ts
+│   │   └── createOrderResponse.ts
+│   └── processPayment/
+│       ├── processPayment.ts
+│       ├── processPayment.test.ts
+│       ├── processPaymentFactory.ts
+│       ├── processPaymentFactory.test.ts
+│       ├── processPaymentMapper.ts
+│       ├── processPaymentMapper.test.ts
+│       ├── processPaymentRequest.ts
+│       └── processPaymentResponse.ts
+├── interfaces/
+│   └── useCaseInterfaces.ts
+└── errors/
+    └── useCaseErrors.ts
+```
+
+## Core Concepts
+
+The application layer manages the flow between presentation and domain layers. It:
+
+- Implements use cases for user interactions
+- Defines request/response DTOs
+- Provides factories for dependency injection
+- Includes mappers for data transformation
+- Uses repository and service interfaces
+- Keeps service implementations in domain layer
+- Handles cross-cutting concerns
+- Manages transactions and error handling
+
+This layer depends on domain but is independent of infrastructure.
+
+## Application Layer Best Practices
+
+### Use Case Guidelines
+
+1. **Single Responsibility**: Each use case should handle one specific business operation
+2. **Command/Query Separation**: Separate commands (mutations) from queries (reads)
+3. **Dependency Injection**: Use constructor injection for dependencies
+4. **Error Handling**: Use custom error classes for use case-specific errors
+5. **Validation**: Validate input data before processing
+6. **Documentation**: Document use case behavior with JSDoc
+7. **Testing**: Write comprehensive unit tests for all use cases
+8. **Transaction Management**: Handle transactions properly
+
+### Factory Guidelines
+
+1. **Dependency Resolution**: Handle all dependency resolution
+2. **Configuration**: Manage configuration injection
+3. **Lifecycle**: Handle object lifecycle management
+4. **Testing**: Provide test doubles for testing
+5. **Documentation**: Document factory behavior
+6. **Error Handling**: Handle factory creation errors
+
+### Mapper Guidelines
+
+1. **Data Transformation**: Handle all data transformations
+2. **Type Safety**: Ensure type safety in transformations
+3. **Validation**: Validate transformed data
+4. **Documentation**: Document mapping rules
+5. **Testing**: Test all mapping scenarios
+6. **Error Handling**: Handle mapping errors
+
+### DTO Guidelines
+
+1. **Type Safety**: Use strict typing for DTOs
+2. **Validation**: Include validation rules
+3. **Documentation**: Document DTO structure
+4. **Immutability**: Keep DTOs immutable
+5. **Serialization**: Handle proper serialization
+6. **Testing**: Test DTO validation
+
+## Implementation Examples
+
+### 1. Service Interface
+
+```typescript
+// services/orderIdGenerator.ts
+
+/**
+ * Interface for generating unique order IDs
+ */
+export interface OrderIdGenerator {
+  /**
+   * Generates a unique order ID
+   * @returns {string} A unique order ID
+   */
+  generate(): string;
+}
+```
+
+### 2. Service Implementation
+
+```typescript
+// domain/services/orderIdGeneratorImpl.ts
+
+import { OrderIdGenerator } from '../../services/orderIdGenerator';
+
+/**
+ * Implementation of the OrderIdGenerator interface
+ */
+export class OrderIdGeneratorImpl implements OrderIdGenerator {
+  /**
+   * Generates a unique order ID using timestamp and random string
+   * @returns {string} A unique order ID in format ORD-{timestamp}-{random}
+   */
+  generate(): string {
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substring(2, 8);
+    return `ORD-${timestamp}-${random}`;
+  }
+}
+```
+
+### 3. Use Case Implementation
+
+```typescript
+// application/useCases/createOrder/createOrder.ts
+
+import { CreateOrderRequest } from './createOrderRequest';
+import { CreateOrderResponse } from './createOrderResponse';
+import { Order } from '../../../domain/entities/order';
+import { OrderRepository } from '../../../repositories/orderRepository';
+import { CreateOrderMapper } from './createOrderMapper';
+import { OrderIdGenerator } from '../../../services/orderIdGenerator';
+import { InvalidOrderError, OrderValidationError } from '../../../domain/errors';
+
+/**
+ * Use case for creating a new order
+ */
+export class CreateOrderUseCase {
+  constructor(
+    private readonly orderRepository: OrderRepository,
+    private readonly orderIdGenerator: OrderIdGenerator
+  ) {}
+
+  /**
+   * Executes the create order use case
+   * @param request The create order request
+   * @throws {OrderValidationError} When order validation fails
+   * @throws {InvalidOrderError} When order creation fails
+   */
+  async execute(request: CreateOrderRequest): Promise<CreateOrderResponse> {
+    this.validateRequest(request);
+
+    const orderProps = {
+      id: this.orderIdGenerator.generate(),
+      customerId: request.customerId,
+      items: request.items,
+      status: 'pending',
+      total: this.calculateTotal(request.items),
+      createdAt: new Date()
+    };
+
+    try {
+      const order = Order.create(orderProps);
+      await this.orderRepository.save(order);
+      return CreateOrderMapper.toResponse(order);
+    } catch (error) {
+      throw new InvalidOrderError('Failed to create order', error);
+    }
+  }
+
+  private validateRequest(request: CreateOrderRequest): void {
+    if (!request.items?.length) {
+      throw new OrderValidationError('Order must contain at least one item');
+    }
+    if (!request.customerId) {
+      throw new OrderValidationError('Customer ID is required');
+    }
+  }
+
+  private calculateTotal(items: Array<{ price: number; quantity: number }>): number {
+    return items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  }
+}
+```
+
+### 4. Factory Implementation
+
+```typescript
+// application/useCases/createOrder/createOrderFactory.ts
+
+import { CreateOrderUseCase } from './createOrder';
+import { OrderRepositoryImpl } from '../../../infrastructure/repositories/orderRepositoryImpl';
+import { OrderIdGeneratorImpl } from '../../../domain/services/orderIdGeneratorImpl';
+import { OrderIdGenerator } from '../../../services/orderIdGenerator';
+import { OrderRepository } from '../../../repositories/orderRepository';
+
+/**
+ * Factory for creating CreateOrderUseCase instances
+ */
+export class CreateOrderFactory {
+  /**
+   * Creates a new instance of CreateOrderUseCase with all dependencies
+   * @throws {FactoryError} When dependency creation fails
+   */
+  static create(): CreateOrderUseCase {
+    try {
+      const orderRepository: OrderRepository = new OrderRepositoryImpl();
+      const orderIdGenerator: OrderIdGenerator = new OrderIdGeneratorImpl();
+
+      return new CreateOrderUseCase(orderRepository, orderIdGenerator);
+    } catch (error) {
+      throw new FactoryError('Failed to create CreateOrderUseCase', error);
+    }
+  }
+}
+```
+
+### 5. Mapper Implementation
+
+```typescript
+// application/useCases/createOrder/createOrderMapper.ts
+
+import { Order } from '../../../domain/entities/order';
+import { CreateOrderResponse } from './createOrderResponse';
+import { MappingError } from '../../../domain/errors';
+
+/**
+ * Mapper for transforming Order entities to CreateOrderResponse DTOs
+ */
+export class CreateOrderMapper {
+  /**
+   * Transforms an Order entity to a CreateOrderResponse DTO
+   * @param order The order entity to transform
+   * @throws {MappingError} When mapping fails
+   */
+  static toResponse(order: Order): CreateOrderResponse {
+    try {
+      return {
+        id: order.id,
+        customerId: order.customerId,
+        items: order.items,
+        status: order.status,
+        total: order.total,
+        createdAt: order.createdAt.toISOString()
+      };
+    } catch (error) {
+      throw new MappingError('Failed to map Order to CreateOrderResponse', error);
+    }
+  }
+}
+```
+
+### 6. Request DTO
+
+```typescript
+// application/useCases/createOrder/createOrderRequest.ts
+
+/**
+ * Request DTO for creating a new order
+ */
+export interface CreateOrderRequest {
+  /** The ID of the customer placing the order */
+  customerId: string;
+  /** The items to be ordered */
+  items: Array<{
+    /** The ID of the product */
+    productId: string;
+    /** The price of the product */
+    price: number;
+    /** The quantity of the product */
+    quantity: number;
+  }>;
+}
+```
+
+### 7. Response DTO
+
+```typescript
+// application/useCases/createOrder/createOrderResponse.ts
+
+/**
+ * Response DTO for the create order operation
+ */
+export interface CreateOrderResponse {
+  /** The unique identifier of the created order */
+  id: string;
+  /** The ID of the customer who placed the order */
+  customerId: string;
+  /** The items in the order */
+  items: Array<{
+    /** The ID of the product */
+    productId: string;
+    /** The price of the product */
+    price: number;
+    /** The quantity of the product */
+    quantity: number;
+  }>;
+  /** The current status of the order */
+  status: string;
+  /** The total amount of the order */
+  total: number;
+  /** The ISO string representation of the order creation timestamp */
+  createdAt: string;
+}
+```
+
+### 8. Use Case Test
+
+```typescript
+// application/useCases/createOrder/createOrder.test.ts
+
+import { CreateOrderUseCase } from './createOrder';
+import { CreateOrderRequest } from './createOrderRequest';
+import { OrderRepository } from '../../../repositories/orderRepository';
+import { Order } from '../../../domain/entities/order';
+import { OrderIdGenerator } from '../../../services/orderIdGenerator';
+import { OrderValidationError, InvalidOrderError } from '../../../domain/errors';
+
+jest.mock('../../../domain/entities/order');
+jest.mock('./createOrderMapper');
+
+describe('CreateOrderUseCase', () => {
+  let useCase: CreateOrderUseCase;
+  let mockOrderRepository: jest.Mocked<OrderRepository>;
+  let mockOrderIdGenerator: jest.Mocked<OrderIdGenerator>;
+  
+  beforeEach(() => {
+    mockOrderRepository = {
+      save: jest.fn(),
+      findById: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn()
+    } as unknown as jest.Mocked<OrderRepository>;
+    
+    mockOrderIdGenerator = {
+      generate: jest.fn().mockReturnValue('ORD-123')
+    } as unknown as jest.Mocked<OrderIdGenerator>;
+    
+    useCase = new CreateOrderUseCase(
+      mockOrderRepository,
+      mockOrderIdGenerator
+    );
+    
+    (Order.create as jest.Mock).mockImplementation((props) => ({
+      id: props.id,
+      customerId: props.customerId,
+      items: props.items,
+      status: props.status,
+      total: props.total,
+      createdAt: props.createdAt,
+      toObject: () => props
+    }));
+  });
+  
+  describe('execute', () => {
+    const validRequest: CreateOrderRequest = {
+      customerId: 'CUST-123',
+      items: [
+        { productId: 'PROD-1', price: 10, quantity: 2 },
+        { productId: 'PROD-2', price: 20, quantity: 1 }
+      ]
+    };
+
+    it('should create order with valid request', async () => {
+      const response = await useCase.execute(validRequest);
+      
+      expect(response.id).toBe('ORD-123');
+      expect(response.customerId).toBe(validRequest.customerId);
+      expect(response.items).toEqual(validRequest.items);
+      expect(response.status).toBe('pending');
+      expect(response.total).toBe(40);
+      expect(mockOrderRepository.save).toHaveBeenCalled();
+    });
+
+    it('should throw OrderValidationError for empty items', async () => {
+      const invalidRequest = { ...validRequest, items: [] };
+      
+      await expect(useCase.execute(invalidRequest))
+        .rejects
+        .toThrow(OrderValidationError);
+    });
+
+    it('should throw OrderValidationError for missing customerId', async () => {
+      const invalidRequest = { ...validRequest, customerId: '' };
+      
+      await expect(useCase.execute(invalidRequest))
+        .rejects
+        .toThrow(OrderValidationError);
+    });
+
+    it('should throw InvalidOrderError when repository save fails', async () => {
+      mockOrderRepository.save.mockRejectedValueOnce(new Error('DB Error'));
+      
+      await expect(useCase.execute(validRequest))
+        .rejects
+        .toThrow(InvalidOrderError);
+    });
+  });
+});
+```
+
