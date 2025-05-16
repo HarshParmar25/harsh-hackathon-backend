@@ -34,4 +34,9 @@ export class DatabaseManager {
   public async closeConnection(): Promise<void> {
     await this.database.release();
   }
+
+  public static async query(sql: string, params?: any[]): Promise<any> {
+    const instance = await DatabaseManager.getInstance();
+    return instance.database.query(sql, params);
+  }
 }
