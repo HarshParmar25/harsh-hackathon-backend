@@ -1,13 +1,21 @@
 import { Pool, PoolClient } from "pg";
 import { IDatabase } from "./IDatabase";
+import { DB_CONFIG } from "./config";
 
 export class PostgresDatabase implements IDatabase {
   private pool: Pool;
   private client: PoolClient | null = null;
 
-  constructor(connectionString: string) {
+  constructor() {
+    if (!DB_CONFIG.host || !DB_CONFIG.port || !DB_CONFIG.database || !DB_CONFIG.user || !DB_CONFIG.password) {
+      throw new Error("Database configuration is missing");
+    }
     this.pool = new Pool({
-      connectionString,
+      host: DB_CONFIG.host,
+      port: DB_CONFIG.port,
+      database: DB_CONFIG.database,
+      user: DB_CONFIG.user,
+      password: DB_CONFIG.password,
       ssl: {
         rejectUnauthorized: false,
       },

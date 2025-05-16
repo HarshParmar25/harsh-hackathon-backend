@@ -1,17 +1,12 @@
 import { IDatabase } from "./IDatabase";
 import { PostgresDatabase } from "./PostgresDatabase";
-import { DB_CONFIG } from "./config";
 
 export class DatabaseManager {
   private static instance: DatabaseManager;
   private database: IDatabase;
 
   private constructor() {
-    if (!DB_CONFIG.connectionString) {
-      throw new Error("DATABASE_URL is not set");
-    }
-    console.log("DB_CONFIG", DB_CONFIG);
-    this.database = new PostgresDatabase(DB_CONFIG.connectionString);
+    this.database = new PostgresDatabase();
   }
 
   public static async getInstance(): Promise<DatabaseManager> {
