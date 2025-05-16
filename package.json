@@ -2,12 +2,16 @@
   "name": "harsh-hackathon-backend",
   "version": "1.0.0",
   "description": "Harsh Hackathon Backend",
-  "main": "src/server.ts",
+  "main": "dist/server.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "test": "jest",
     "test:watch": "jest --watch",
-    "start": "ts-node src/server.ts"
+    "start": "node dist/server.js",
+    "build": "tsc",
+    "build:watch": "tsc -w",
+    "clean": "rm -rf dist",
+    "prebuild": "npm run clean"
   },
   "keywords": [],
   "author": "",
