@@ -9,12 +9,6 @@ async function startServer() {
     // Connect to database first
     const dbManager = await DatabaseManager.getInstance();
 
-    // write a test query to the database that creates a table if it doesn't exist
-    const result = await dbManager
-      .getDatabase()
-      .query("CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL)");
-    console.log("result", result);
-
     // Start server
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
