@@ -10,6 +10,7 @@ export class DatabaseManager {
     if (!DB_CONFIG.connectionString) {
       throw new Error("DATABASE_URL is not set");
     }
+    console.log("DB_CONFIG", DB_CONFIG);
     this.database = new PostgresDatabase(DB_CONFIG.connectionString);
   }
 
