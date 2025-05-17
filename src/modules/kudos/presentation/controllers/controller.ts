@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { CreateKudosFactory } from "../../application/use-cases/createKudos/createKudosFactory";
 import { GetAllKudosFactory } from "../../application/use-cases/getAllKudos/getAllKudosFactory";
+import { GetKudosFactory } from "../../application/use-cases/getKudos/getKudosFactory";
 
 export class KudosController {
   static async create(req: Request, res: Response, next: NextFunction) {
@@ -27,6 +28,23 @@ export class KudosController {
       return res.status(200).json(kudos);
     } catch (error) {
       next(error);
+    }
+  }
+
+  static async getKudos(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.session?.user_id;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const useCase = GetKudosFactory.create();
+      const kudos = await useCase.execute(userId);
+
+      return res.json(kudos);
+    } catch (error) {
+      console.error("Error getting kudos:", error);
+      return res.status(500).json({ message: "Internal server error" });
     }
   }
 }

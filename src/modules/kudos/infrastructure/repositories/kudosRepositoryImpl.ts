@@ -71,4 +71,22 @@ export class KudosRepositoryImpl implements IKudosRepository {
     `;
     await DatabaseManager.query(query, [id]);
   }
+
+  async findByUserIdWithUsers(userId: number): Promise<KudosWithUsers[]> {
+    const query = `
+      SELECT 
+        kudos.*,
+        receiver.name as receiver_name,
+        receiver.image_url as receiver_image_url,
+        creator.name as creator_name,
+        creator.image_url as creator_image_url
+      FROM kudos 
+      LEFT JOIN users receiver ON kudos.user_id = receiver.id
+      LEFT JOIN users creator ON kudos.created_by_user_id = creator.id
+      WHERE kudos.user_id = $1 AND kudos.deleted_at IS NULL
+      ORDER BY kudos.created_at DESC
+    `;
+    const result = await DatabaseManager.query(query, [userId]);
+    return result.map(KudosWithUserMapper.toDto);
+  }
 }
