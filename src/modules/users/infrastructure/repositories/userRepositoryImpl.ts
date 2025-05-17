@@ -24,4 +24,10 @@ export class UserRepositoryImpl implements IUserRepository {
     const result = await DatabaseManager.query(query, values);
     return CreateUserMapper.toDomain(result[0]);
   }
+
+  async findAll(): Promise<User[]> {
+    const query = `SELECT * FROM users`;
+    const result = await DatabaseManager.query(query);
+    return result.map((user: any) => CreateUserMapper.toDomain(user));
+  }
 }

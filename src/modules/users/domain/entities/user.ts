@@ -6,6 +6,7 @@ interface UserProps {
   email: string;
   password: string;
   role: string;
+  imageUrl?: string;
 }
 export class User {
   private props: UserProps;
@@ -31,5 +32,9 @@ export class User {
 
   getRole() {
     return this.props.role;
+  }
+
+  getImageUrl() {
+    return this.props.imageUrl;
   }
 }

@@ -7,6 +7,7 @@ export class CreateUserMapper {
       email: user.getEmail(),
       password_hash: user.getPassword(),
       role: user.getRole(),
+      image_url: user.getImageUrl(),
     };
   }
 
@@ -17,6 +18,7 @@ export class CreateUserMapper {
       email: raw.email,
       password: raw.password_hash,
       role: raw.role,
+      imageUrl: raw.image_url,
     });
   }
 }

@@ -10,5 +10,6 @@ const validator = createValidator({ passError: true });
 router.post("/signup", validator.body(userValidationSchema.signup), UserController.signup);
 router.post("/logout", authMiddleware, UserController.logout);
 router.post("/login", validator.body(userValidationSchema.login), UserController.login);
+router.get("/", authMiddleware, UserController.getAllUsers);
 
 export { router as userRoutes };
