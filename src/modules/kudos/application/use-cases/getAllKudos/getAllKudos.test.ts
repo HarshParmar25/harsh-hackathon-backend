@@ -42,7 +42,12 @@ describe("GetAllKudosUseCase", () => {
       },
     ];
 
-    mockKudosRepository.findAllWithUsers.mockResolvedValue(mockKudos);
+    mockKudosRepository.findAllWithUsers.mockResolvedValue(
+      mockKudos.map((kudos) => ({
+        ...kudos,
+        createdByUserId: kudos.createdByUserId || 0,
+      }))
+    );
 
     // Act
     const result = await useCase.execute();

@@ -5,6 +5,10 @@ export class KudosMapper {
     return {
       id: raw.id,
       userId: raw.user_id,
+      creatorName: raw.creator_name,
+      creatorImageUrl: raw.creator_image_url,
+      receiverName: raw.receiver_name,
+      receiverImageUrl: raw.receiver_image_url,
       createdByUserId: raw.created_by_user_id,
       teamName: raw.team_name,
       category: raw.category,

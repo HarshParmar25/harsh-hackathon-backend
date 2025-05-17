@@ -25,7 +25,11 @@ export interface KudosWithUsers {
 export interface Kudos {
   id: number;
   userId: number;
-  createdByUserId: number;
+  createdByUserId?: number;
+  creatorName?: string;
+  creatorImageUrl?: string;
+  receiverName?: string;
+  receiverImageUrl?: string;
   teamName: string;
   category: string;
   message: string;
