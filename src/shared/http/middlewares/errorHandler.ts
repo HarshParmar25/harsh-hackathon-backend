@@ -17,6 +17,12 @@ interface ValidationError {
 }
 
 export const errorMiddleware = (err: any, req: Request, res: Response, next: NextFunction) => {
+  try {
+    console.error(err);
+  } catch (error) {
+    console.error("Error while logging error in error middleware");
+  }
+
   if (err.error?.details) {
     return res.status(400).json({
       message: "Validation Error",
