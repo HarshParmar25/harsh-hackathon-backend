@@ -15,7 +15,14 @@ CREATE TABLE IF NOT EXISTS users (
     deleted_at TIMESTAMP WITH TIME ZONE
 );
 
+-- Add new columns
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS employee_id VARCHAR(20) UNIQUE,
+ADD COLUMN IF NOT EXISTS image_url TEXT;
+
 CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
+
+CREATE INDEX IF NOT EXISTS idx_users_employee_id ON users (employee_id);
 
 -- Trigger function for updating timestamps
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -34,16 +41,3 @@ CREATE TRIGGER update_users_updated_at
     BEFORE UPDATE ON users
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TABLE IF NOT EXISTS sessions (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    session_token VARCHAR(255) NOT NULL UNIQUE,
-    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP WITH TIME ZONE
-);
-
-CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions (session_token);
-
-CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions (user_id);
