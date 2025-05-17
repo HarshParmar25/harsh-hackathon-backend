@@ -15,7 +15,7 @@ export class UserController {
         httpOnly: true,
         sameSite: "none",
         maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-        secure: false,
+        secure: true,
       });
 
       return res.status(201).json(result.user);
@@ -57,7 +57,7 @@ export class UserController {
         httpOnly: true,
         sameSite: "none",
         maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-        secure: false,
+        secure: true,
       });
 
       return res.status(200).json(result.user);
