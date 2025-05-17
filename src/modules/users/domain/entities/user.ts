@@ -1,17 +1,35 @@
+import crypto from "crypto";
+
 interface UserProps {
-  id?: string;
-  firstName: string;
-  lastName: string;
+  id?: number;
+  name: string;
   email: string;
   password: string;
+  role: string;
 }
 export class User {
-  private props!: UserProps;
-  constructor() {}
+  private props: UserProps;
+  constructor(props: UserProps) {
+    this.props = props;
+  }
 
-  static create(props: UserProps) {
-    const user = new User();
-    user.props = props;
-    return user;
+  getId() {
+    return this.props.id;
+  }
+
+  getName() {
+    return this.props.name;
+  }
+
+  getEmail() {
+    return this.props.email;
+  }
+
+  getPassword() {
+    return this.props.password;
+  }
+
+  getRole() {
+    return this.props.role;
   }
 }
