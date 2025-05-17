@@ -1,9 +1,11 @@
 import { KudosRepositoryImpl } from "../../../infrastructure/repositories/kudosRepositoryImpl";
+import { UserRepositoryImpl } from "../../../infrastructure/repositories/userRepositoryImpl";
 import { CreateKudosUseCase } from "./createKudos";
 
 export class CreateKudosFactory {
   static create() {
     const kudosRepository = new KudosRepositoryImpl();
-    return new CreateKudosUseCase(kudosRepository);
+    const userRepository = new UserRepositoryImpl();
+    return new CreateKudosUseCase(kudosRepository, userRepository);
   }
 }

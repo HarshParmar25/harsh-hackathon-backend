@@ -1,11 +1,12 @@
 import { CreateKudosUseCase } from "./createKudos";
 import { IKudosRepository, Kudos } from "../../../repositories/kudosRepository";
 import { CreateKudosDto } from "./createKudosDto";
+import { IUserRepository } from "../../../repositories/userRepository";
 
 describe("CreateKudosUseCase", () => {
   let useCase: CreateKudosUseCase;
   let mockKudosRepository: jest.Mocked<IKudosRepository>;
-
+  let mockUserRepository: jest.Mocked<IUserRepository>;
   beforeEach(() => {
     mockKudosRepository = {
       create: jest.fn(),
@@ -15,7 +16,10 @@ describe("CreateKudosUseCase", () => {
       findByCreatedByUserId: jest.fn(),
       softDelete: jest.fn(),
     };
-    useCase = new CreateKudosUseCase(mockKudosRepository);
+    mockUserRepository = {
+      findByIds: jest.fn(),
+    };
+    useCase = new CreateKudosUseCase(mockKudosRepository, mockUserRepository);
   });
 
   it("should successfully create a kudos", async () => {
@@ -33,16 +37,6 @@ describe("CreateKudosUseCase", () => {
       ...createKudosDto,
       createdAt: new Date(),
       updatedAt: new Date(),
-      receiver: {
-        id: 1,
-        name: "John Doe",
-        imageUrl: "https://example.com/john.jpg",
-      },
-      creator: {
-        id: 2,
-        name: "Jane Smith",
-        imageUrl: "https://example.com/jane.jpg",
-      },
     };
 
     mockKudosRepository.create.mockResolvedValue(expectedKudos);

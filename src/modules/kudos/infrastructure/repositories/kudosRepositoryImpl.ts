@@ -1,7 +1,8 @@
 import { DatabaseManager } from "../../../../shared/database/DatabaseManager";
 import { CreateKudosDto } from "../../application/use-cases/createKudos/createKudosDto";
 import { KudosMapper } from "../../mappers/kudosMapper";
-import { IKudosRepository, Kudos } from "../../repositories/kudosRepository";
+import { KudosWithUserMapper } from "../../mappers/kudosWithUserMapper";
+import { IKudosRepository, Kudos, KudosWithUsers } from "../../repositories/kudosRepository";
 
 export class KudosRepositoryImpl implements IKudosRepository {
   async create(data: CreateKudosDto): Promise<Kudos> {
@@ -15,7 +16,7 @@ export class KudosRepositoryImpl implements IKudosRepository {
     return KudosMapper.toDto(result[0]);
   }
 
-  async findAllWithUsers(): Promise<Kudos[]> {
+  async findAllWithUsers(): Promise<KudosWithUsers[]> {
     const query = `
       SELECT 
         kudos.*,
@@ -30,7 +31,7 @@ export class KudosRepositoryImpl implements IKudosRepository {
       ORDER BY kudos.created_at DESC
     `;
     const result = await DatabaseManager.query(query);
-    return result.map(KudosMapper.toDto);
+    return result.map(KudosWithUserMapper.toDto);
   }
 
   async findById(id: number): Promise<Kudos | null> {

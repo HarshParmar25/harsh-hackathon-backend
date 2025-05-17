@@ -29,16 +29,6 @@ describe("GetAllKudosUseCase", () => {
         message: "Great collaboration!",
         createdAt: new Date(),
         updatedAt: new Date(),
-        receiver: {
-          id: 1,
-          name: "John Doe",
-          imageUrl: "https://example.com/john.jpg",
-        },
-        creator: {
-          id: 2,
-          name: "Jane Smith",
-          imageUrl: "https://example.com/jane.jpg",
-        },
       },
       {
         id: 2,
@@ -49,16 +39,6 @@ describe("GetAllKudosUseCase", () => {
         message: "Amazing design work!",
         createdAt: new Date(),
         updatedAt: new Date(),
-        receiver: {
-          id: 3,
-          name: "Bob Wilson",
-          imageUrl: "https://example.com/bob.jpg",
-        },
-        creator: {
-          id: 1,
-          name: "John Doe",
-          imageUrl: "https://example.com/john.jpg",
-        },
       },
     ];
 

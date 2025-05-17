@@ -1,6 +1,6 @@
 import { CreateKudosDto } from "../application/use-cases/createKudos/createKudosDto";
 
-export interface Kudos {
+export interface KudosWithUsers {
   id: number;
   userId: number;
   createdByUserId: number;
@@ -22,9 +22,21 @@ export interface Kudos {
   };
 }
 
+export interface Kudos {
+  id: number;
+  userId: number;
+  createdByUserId: number;
+  teamName: string;
+  category: string;
+  message: string;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt?: Date;
+}
+
 export interface IKudosRepository {
   create(data: CreateKudosDto): Promise<Kudos>;
-  findAllWithUsers(): Promise<Kudos[]>;
+  findAllWithUsers(): Promise<KudosWithUsers[]>;
   findById(id: number): Promise<Kudos | null>;
   findByUserId(userId: number): Promise<Kudos[]>;
   findByCreatedByUserId(createdByUserId: number): Promise<Kudos[]>;
