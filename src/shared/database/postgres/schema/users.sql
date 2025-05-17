@@ -52,7 +52,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions (user_id);
 
 --  Kudos
 
-CREATE TABLE kudos (
+CREATE TABLE IF NOT EXISTS kudos (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL,
     created_by_user_id INTEGER NOT NULL,
@@ -75,7 +75,28 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+DROP TRIGGER IF EXISTS update_kudos_updated_at ON kudos;
+
 CREATE TRIGGER update_kudos_updated_at
     BEFORE UPDATE ON kudos
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- TEAMS
+
+CREATE TABLE IF NOT EXISTS teams (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX IF NOT EXISTS idx_teams_name ON teams (name);
+
+-- Add trigger for updating timestamps
+CREATE TRIGGER update_teams_updated_at
+    BEFORE UPDATE ON teams
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
