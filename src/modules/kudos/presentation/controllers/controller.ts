@@ -33,13 +33,8 @@ export class KudosController {
 
   static async getKudos(req: Request, res: Response, next: NextFunction) {
     try {
-      const userId = req.session?.user_id;
-      if (!userId) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
-
       const useCase = GetKudosFactory.create();
-      const kudos = await useCase.execute(userId);
+      const kudos = await useCase.execute(Number(req.params.id));
 
       return res.json(kudos);
     } catch (error) {
