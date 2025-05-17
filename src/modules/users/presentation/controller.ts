@@ -12,8 +12,9 @@ export class UserController {
       const result = await useCase.execute(req.body);
 
       res.cookie("session_token", result.session.token, {
-        secure: true,
+        sameSite: "lax",
         maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+        secure: false,
       });
 
       return res.status(201).json(result.user);
@@ -52,8 +53,9 @@ export class UserController {
       const result = await useCase.execute(dto);
 
       res.cookie("session_token", result.session.token, {
-        secure: true,
+        sameSite: "lax",
         maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+        secure: false,
       });
 
       return res.status(200).json(result.user);
