@@ -1,12 +1,12 @@
 import { Router } from "express";
-import { employeeRoutes } from "../../../modules/employees/presentation/routes";
 import { userRoutes } from "../../../modules/users/presentation/routes";
+import { kudosRoutes } from "../../../modules/kudos/presentation/routes/routes";
 
 const router = Router();
 
 router.use("/users", userRoutes);
 
-router.use("/employees", employeeRoutes);
+router.use("/kudos", kudosRoutes);
 
 router.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });
