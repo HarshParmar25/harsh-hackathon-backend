@@ -5,10 +5,7 @@ export class BasecampService {
 
   static async sendNotification(content: string): Promise<void> {
     try {
-      // console.log(content);
-      if (process.env.NODE_ENV === "development") {
-        console.log(content);
-      } else {
+      if (process.env.SEND_NOTIFICATION === "true") {
         await axios.post(this.BASE_URL, { content });
       }
     } catch (error) {
