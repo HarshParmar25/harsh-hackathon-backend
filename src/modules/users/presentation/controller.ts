@@ -12,7 +12,8 @@ export class UserController {
       const result = await useCase.execute(req.body);
 
       res.cookie("session_token", result.session.token, {
-        sameSite: "lax",
+        httpOnly: true,
+        sameSite: "none",
         maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
         secure: false,
       });
@@ -53,7 +54,8 @@ export class UserController {
       const result = await useCase.execute(dto);
 
       res.cookie("session_token", result.session.token, {
-        sameSite: "lax",
+        httpOnly: true,
+        sameSite: "none",
         maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
         secure: false,
       });
