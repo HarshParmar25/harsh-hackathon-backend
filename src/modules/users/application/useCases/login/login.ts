@@ -2,6 +2,7 @@ import { IUserRepository } from "../../../repositories/userRepository";
 import { LoginDTO, LoginResponse } from "./loginDto";
 import { AuthService } from "../../services/authService";
 import { LoginResponseMapper } from "./loginResponseMapper";
+import { PasswordService } from "../../../../../shared/services/passwordService";
 
 export class LoginUseCase {
   constructor(private readonly userRepository: IUserRepository, private readonly authService: AuthService) {}
@@ -12,7 +13,7 @@ export class LoginUseCase {
       throw new Error("Invalid credentials");
     }
 
-    const isPasswordValid = this.verifyPassword(dto.password, user.getPassword());
+    const isPasswordValid = await PasswordService.verify(dto.password, user.getPassword());
     if (!isPasswordValid) {
       throw new Error("Invalid credentials");
     }
@@ -25,9 +26,5 @@ export class LoginUseCase {
     const session = await this.authService.createSession(userId);
 
     return LoginResponseMapper.toDto(user, session);
-  }
-
-  private verifyPassword(receivedPassword: string, storedPassword: string): boolean {
-    return receivedPassword === storedPassword;
   }
 }

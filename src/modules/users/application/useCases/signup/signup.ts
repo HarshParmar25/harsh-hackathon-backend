@@ -3,6 +3,7 @@ import { IUserRepository } from "../../../repositories/userRepository";
 import { SignupDTO, SignupResponse } from "./signupDto";
 import { AuthService } from "../../services/authService";
 import { SignupResponseMapper } from "./signupResponseMapper";
+import { PasswordService } from "../../../../../shared/services/passwordService";
 
 export class SignupUseCase {
   constructor(private readonly userRepository: IUserRepository, private readonly authService: AuthService) {}
@@ -13,10 +14,11 @@ export class SignupUseCase {
       throw new Error("User already exists");
     }
 
+    const hashedPassword = await PasswordService.hash(dto.password);
     const user = new User({
       name: dto.name,
       email: dto.email,
-      password: dto.password,
+      password: hashedPassword,
       role: dto.role,
     });
     const newUser = await this.userRepository.create(user);
