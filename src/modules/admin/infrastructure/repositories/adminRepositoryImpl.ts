@@ -10,7 +10,7 @@ export class AdminRepositoryImpl implements IAdminRepository {
     const query = `
       SELECT * FROM users 
       WHERE deleted_at IS NULL 
-      AND is_active = true
+      AND is_active = true AND role != 'admin'
     `;
     const result = await DatabaseManager.query(query);
     return result.map((user: any) => CreateUserMapper.toDomain(user));
