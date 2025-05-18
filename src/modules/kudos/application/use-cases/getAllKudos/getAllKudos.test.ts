@@ -9,11 +9,7 @@ describe("GetAllKudosUseCase", () => {
     mockKudosRepository = {
       create: jest.fn(),
       findAllWithUsers: jest.fn(),
-      findById: jest.fn(),
-      findByUserId: jest.fn(),
-      findByCreatedByUserId: jest.fn(),
       findByUserIdWithUsers: jest.fn(),
-      softDelete: jest.fn(),
     };
     useCase = new GetAllKudosUseCase(mockKudosRepository);
   });

@@ -41,9 +41,5 @@ export interface Kudos {
 export interface IKudosRepository {
   create(data: CreateKudosDto): Promise<Kudos>;
   findAllWithUsers(): Promise<KudosWithUsers[]>;
-  findById(id: number): Promise<Kudos | null>;
-  findByUserId(userId: number): Promise<Kudos[]>;
-  findByCreatedByUserId(createdByUserId: number): Promise<Kudos[]>;
   findByUserIdWithUsers(userId: number): Promise<KudosWithUsers[]>;
-  softDelete(id: number): Promise<void>;
 }

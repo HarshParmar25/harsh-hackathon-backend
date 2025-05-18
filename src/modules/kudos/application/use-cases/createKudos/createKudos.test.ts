@@ -11,11 +11,7 @@ describe("CreateKudosUseCase", () => {
     mockKudosRepository = {
       create: jest.fn(),
       findAllWithUsers: jest.fn(),
-      findById: jest.fn(),
-      findByUserId: jest.fn(),
-      findByCreatedByUserId: jest.fn(),
       findByUserIdWithUsers: jest.fn(),
-      softDelete: jest.fn(),
     };
     mockUserRepository = {
       findByIds: jest.fn(),

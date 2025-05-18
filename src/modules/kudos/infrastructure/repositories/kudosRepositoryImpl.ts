@@ -34,44 +34,6 @@ export class KudosRepositoryImpl implements IKudosRepository {
     return result.map(KudosWithUserMapper.toDto);
   }
 
-  async findById(id: number): Promise<Kudos | null> {
-    const query = `
-      SELECT * FROM kudos 
-      WHERE id = $1 AND deleted_at IS NULL
-    `;
-    const result = await DatabaseManager.query(query, [id]);
-    return result.length ? KudosMapper.toDto(result[0]) : null;
-  }
-
-  async findByUserId(userId: number): Promise<Kudos[]> {
-    const query = `
-      SELECT * FROM kudos 
-      WHERE user_id = $1 AND deleted_at IS NULL
-      ORDER BY created_at DESC
-    `;
-    const result = await DatabaseManager.query(query, [userId]);
-    return result.map(KudosMapper.toDto);
-  }
-
-  async findByCreatedByUserId(createdByUserId: number): Promise<Kudos[]> {
-    const query = `
-      SELECT * FROM kudos 
-      WHERE created_by_user_id = $1 AND deleted_at IS NULL
-      ORDER BY created_at DESC
-    `;
-    const result = await DatabaseManager.query(query, [createdByUserId]);
-    return result.map(KudosMapper.toDto);
-  }
-
-  async softDelete(id: number): Promise<void> {
-    const query = `
-      UPDATE kudos 
-      SET deleted_at = CURRENT_TIMESTAMP 
-      WHERE id = $1
-    `;
-    await DatabaseManager.query(query, [id]);
-  }
-
   async findByUserIdWithUsers(userId: number): Promise<KudosWithUsers[]> {
     const query = `
       SELECT 
