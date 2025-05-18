@@ -56,7 +56,7 @@ export class SignupUseCase {
             <p>Review and manage this request through the admin dashboard:</p>
             <a href="${
               this.DOMAIN_URL
-            }/" style="display: inline-block; background-color: #3498db; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 10px;">Go to Admin Dashboard</a>
+            }/dashboard" style="display: inline-block; background-color: #3498db; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 10px;">Go to Admin Dashboard</a>
           </div>
 
           <p style="color: #7f8c8d; font-size: 0.9em;">This is an automated notification. Please review this request at your earliest convenience.</p>
