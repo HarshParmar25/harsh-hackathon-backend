@@ -24,13 +24,11 @@ async function setupDatabase() {
     // Create admin user
     const hashedPassword = await hash("Test@123");
     await pool.query(
-      `INSERT INTO users (name, email, password_hash, role) 
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO users (name, email, password_hash, role, is_active, activation_status) 
+       VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (email) DO NOTHING`,
-      ["Admin", "harsh1@gmail.com", hashedPassword, "admin"]
+      ["Admin", "harshparmar2506@gmail.com", hashedPassword, "admin", true, "approved"]
     );
-
-    await pool.query(`UPDATE users SET activation_status = 'approved'`);
 
     console.log("Admin user created successfully");
 

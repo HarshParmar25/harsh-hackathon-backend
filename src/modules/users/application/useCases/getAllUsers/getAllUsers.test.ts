@@ -12,6 +12,7 @@ describe("GetAllUsersUseCase", () => {
       findByEmail: jest.fn(),
       create: jest.fn(),
       findAll: jest.fn(),
+      findByRole: jest.fn(),
     };
     useCase = new GetAllUsersUseCase(mockUserRepository);
   });

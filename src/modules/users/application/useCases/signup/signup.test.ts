@@ -19,6 +19,7 @@ describe("SignupUseCase", () => {
       findByEmail: jest.fn(),
       create: jest.fn(),
       findAll: jest.fn(),
+      findByRole: jest.fn(),
     };
     mockAuthService = {
       createSession: jest.fn(),

@@ -37,4 +37,11 @@ export class UserRepositoryImpl implements IUserRepository {
     const result = await DatabaseManager.query(query);
     return result.map((user: any) => CreateUserMapper.toDomain(user));
   }
+
+  async findByRole(role: string): Promise<User[]> {
+    const query = `SELECT * FROM users WHERE role = $1 AND deleted_at IS NULL`;
+    const values = [role];
+    const result = await DatabaseManager.query(query, values);
+    return result.map((user: any) => CreateUserMapper.toDomain(user));
+  }
 }
