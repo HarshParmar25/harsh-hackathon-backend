@@ -1,6 +1,11 @@
 const fs = require("fs").promises;
 const path = require("path");
 const pool = require("./connection");
+const crypto = require("crypto");
+
+function hash(password) {
+  return crypto.createHash("sha256").update(password).digest("hex");
+}
 
 async function setupDatabase() {
   try {
@@ -15,6 +20,16 @@ async function setupDatabase() {
         console.log(`Executed schema from ${file}`);
       }
     }
+
+    // Create admin user
+    const hashedPassword = await hash("Test@123");
+    await pool.query(
+      `INSERT INTO users (name, email, password_hash, role) 
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (email) DO NOTHING`,
+      ["Admin", "harsh1@gmail.com", hashedPassword, "admin"]
+    );
+    console.log("Admin user created successfully");
 
     console.log("Database setup completed successfully");
   } catch (error) {

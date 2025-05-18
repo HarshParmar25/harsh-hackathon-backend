@@ -96,6 +96,8 @@ CREATE TABLE IF NOT EXISTS teams (
 CREATE INDEX IF NOT EXISTS idx_teams_name ON teams (name);
 
 -- Add trigger for updating timestamps
+DROP TRIGGER IF EXISTS update_teams_updated_at ON teams;
+
 CREATE TRIGGER update_teams_updated_at
     BEFORE UPDATE ON teams
     FOR EACH ROW
