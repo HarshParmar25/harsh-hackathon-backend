@@ -1,10 +1,10 @@
 import { DatabaseManager } from "../../../../shared/database/DatabaseManager";
 import { IProfileRepository } from "../../domain/repositories/profileRepository";
 import { Profile } from "../../domain/entities/profile";
-import { User } from "../../../users/domain/entities/user";
 import { Kudos } from "../../../kudos/repositories/kudosRepository";
 import { CreateUserMapper } from "../../../users/mappers/createUserMapper";
 import { KudosMapper } from "../../../kudos/mappers/kudosMapper";
+import { UserRole } from "../../../users/domain/interfaces/interfaces";
 
 export class ProfileRepositoryImpl implements IProfileRepository {
   async findByUserId(userId: number): Promise<Profile | null> {
@@ -32,7 +32,7 @@ export class ProfileRepositoryImpl implements IProfileRepository {
 
     // If user is team lead, get created kudos
     let createdKudos: Kudos[] | undefined;
-    if (user.getRole() === "team-lead") {
+    if (user.getRole() === UserRole.TEAM_LEAD || user.getRole() === UserRole.ADMIN) {
       const createdKudosQuery = `
         SELECT k.*, 
           u1.name as receiver_name, u1.image_url as receiver_image_url,
