@@ -33,7 +33,7 @@ export class UserRepositoryImpl implements IUserRepository {
   }
 
   async findAll(): Promise<User[]> {
-    const query = `SELECT * FROM users WHERE deleted_at IS NULL`;
+    const query = `SELECT * FROM users WHERE deleted_at IS NULL AND is_active = true`;
     const result = await DatabaseManager.query(query);
     return result.map((user: any) => CreateUserMapper.toDomain(user));
   }

@@ -29,6 +29,9 @@ async function setupDatabase() {
        ON CONFLICT (email) DO NOTHING`,
       ["Admin", "harsh1@gmail.com", hashedPassword, "admin"]
     );
+
+    await pool.query(`UPDATE users SET activation_status = 'approved'`);
+
     console.log("Admin user created successfully");
 
     console.log("Database setup completed successfully");
