@@ -23,5 +23,12 @@ adminRoutes.delete(
   validator.params(adminValidation.deleteMember),
   AdminController.deleteMember
 );
+adminRoutes.post(
+  "/team-lead-requests/handle",
+  authMiddleware,
+  validator.body(adminValidation.handleTeamLeadSignup),
+  AdminController.handleTeamLeadSignup
+);
+adminRoutes.get("/team-lead-requests/pending", authMiddleware, AdminController.getPendingTeamLeadRequests);
 
 export { adminRoutes };

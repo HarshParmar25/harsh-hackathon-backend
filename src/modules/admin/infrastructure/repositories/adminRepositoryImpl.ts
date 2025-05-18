@@ -1,8 +1,9 @@
-import { UserRole } from "@/modules/users/domain/interfaces/interfaces";
+import { UserRole } from "../../../users/domain/interfaces/interfaces";
 import { DatabaseManager } from "../../../../shared/database/DatabaseManager";
 import { User } from "../../../users/domain/entities/user";
 import { CreateUserMapper } from "../../../users/mappers/createUserMapper";
 import { IAdminRepository } from "../../repositories/adminRepository";
+import { ActivationStatus } from "../../../users/domain/interfaces/interfaces";
 
 export class AdminRepositoryImpl implements IAdminRepository {
   async getMembers(): Promise<User[]> {
@@ -20,7 +21,7 @@ export class AdminRepositoryImpl implements IAdminRepository {
       UPDATE users 
       SET role = $1, updated_at = CURRENT_TIMESTAMP
       WHERE id = $2 AND deleted_at IS NULL
-      RETURNING *
+      RETURNING id
     `;
     const values = [role, memberId];
     const result = await DatabaseManager.query(query, values);
@@ -47,5 +48,40 @@ export class AdminRepositoryImpl implements IAdminRepository {
     }
 
     return true;
+  }
+
+  async handleTeamLeadSignup(memberId: number, status: ActivationStatus): Promise<User> {
+    const query = `
+      UPDATE users 
+      SET activation_status = $1,
+          is_active = $2,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3 
+        AND deleted_at IS NULL 
+        AND role = 'team-lead'
+        AND activation_status = 'pending'
+      RETURNING *
+    `;
+    const values = [status, status === ActivationStatus.APPROVED, memberId];
+    const result = await DatabaseManager.query(query, values);
+
+    if (!result[0]) {
+      throw new Error("Team lead not found or already processed");
+    }
+
+    return CreateUserMapper.toDomain(result[0]);
+  }
+
+  async getPendingTeamLeadRequests(): Promise<User[]> {
+    const query = `
+      SELECT * FROM users 
+      WHERE deleted_at IS NULL 
+      AND role = $1
+      AND activation_status = $2
+      ORDER BY created_at DESC
+    `;
+    const values = [UserRole.TEAM_LEAD, ActivationStatus.PENDING];
+    const result = await DatabaseManager.query(query, values);
+    return result.map((user: any) => CreateUserMapper.toDomain(user));
   }
 }

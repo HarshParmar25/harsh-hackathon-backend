@@ -1,6 +1,6 @@
 import { ActivationStatus } from "../../../../users/domain/interfaces/interfaces";
 
-export interface MemberDto {
+export interface GetPendingTeamLeadRequestsResponse {
   id: number;
   name: string;
   email: string;
