@@ -21,11 +21,9 @@ export class CreateKudosUseCase {
   }
 
   private async sendNotification(kudos: Kudos, creator: User, receiver: User) {
-    const name = "Denish";
-    const name2 = "Parth";
     const notificationContent = `<b>🚀 Captain Harsh's Kudos Station!</b><br>
-      <b>From:</b> ${name} <span style="color: #4CAF50;">✨</span><br>
-      <b>To:</b> ${name2} <span style="color: #2196F3;">🌟</span><br>
+      <b>From:</b> ${creator.name} <span style="color: #4CAF50;">✨</span><br>
+      <b>To:</b> ${receiver.name} <span style="color: #2196F3;">🌟</span><br>
       <b>Category:</b> ${kudos.category} <span style="color: #FF9800;">🏆</span><br>
       <b>Message:</b> ${kudos.message}<br>
       <b>Team:</b> ${kudos.teamName} <span style="color: #9C27B0;">👥</span><br>
