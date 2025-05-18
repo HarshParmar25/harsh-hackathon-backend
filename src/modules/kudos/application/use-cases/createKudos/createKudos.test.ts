@@ -38,6 +38,12 @@ describe("CreateKudosUseCase", () => {
 
     mockKudosRepository.create.mockResolvedValue(expectedKudos);
 
+    const mockUsers = [
+      { id: 1, name: "Receiver", email: "receiver@example.com" },
+      { id: 2, name: "Creator", email: "creator@example.com" },
+    ];
+    mockUserRepository.findByIds.mockResolvedValue(mockUsers);
+
     // Act
     const result = await useCase.execute(createKudosDto);
 
