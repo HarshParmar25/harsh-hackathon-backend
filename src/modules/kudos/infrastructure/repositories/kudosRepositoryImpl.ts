@@ -27,7 +27,7 @@ export class KudosRepositoryImpl implements IKudosRepository {
       FROM kudos 
       LEFT JOIN users receiver ON kudos.user_id = receiver.id
       LEFT JOIN users creator ON kudos.created_by_user_id = creator.id
-      WHERE kudos.deleted_at IS NULL
+      WHERE kudos.deleted_at IS NULL AND creator.deleted_at IS NULL AND receiver.deleted_at IS NULL
       ORDER BY kudos.created_at DESC
     `;
     const result = await DatabaseManager.query(query);
@@ -83,7 +83,7 @@ export class KudosRepositoryImpl implements IKudosRepository {
       FROM kudos 
       LEFT JOIN users receiver ON kudos.user_id = receiver.id
       LEFT JOIN users creator ON kudos.created_by_user_id = creator.id
-      WHERE kudos.user_id = $1 AND kudos.deleted_at IS NULL
+      WHERE kudos.user_id = $1 AND kudos.deleted_at IS NULL AND creator.deleted_at IS NULL AND receiver.deleted_at IS NULL
       ORDER BY kudos.created_at DESC
     `;
     const result = await DatabaseManager.query(query, [userId]);

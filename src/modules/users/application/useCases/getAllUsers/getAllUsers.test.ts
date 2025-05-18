@@ -1,6 +1,7 @@
 import { GetAllUsersUseCase } from "./getAllUsers";
 import { IUserRepository } from "../../../repositories/userRepository";
 import { User } from "../../../domain/entities/user";
+import { ActivationStatus } from "../../../domain/interfaces/interfaces";
 
 describe("GetAllUsersUseCase", () => {
   let useCase: GetAllUsersUseCase;
@@ -24,6 +25,8 @@ describe("GetAllUsersUseCase", () => {
         password: "hashedPassword1",
         name: "User 1",
         role: "user",
+        isActive: true,
+        activationStatus: ActivationStatus.APPROVED,
       }),
       new User({
         id: 2,
@@ -31,6 +34,8 @@ describe("GetAllUsersUseCase", () => {
         password: "hashedPassword2",
         name: "User 2",
         role: "user",
+        isActive: true,
+        activationStatus: ActivationStatus.APPROVED,
       }),
     ];
 

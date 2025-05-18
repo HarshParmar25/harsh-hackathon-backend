@@ -102,3 +102,15 @@ CREATE TRIGGER update_teams_updated_at
     BEFORE UPDATE ON teams
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
+
+-- Add new columns for user activation
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS activation_status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (
+    activation_status IN (
+        'pending',
+        'approved',
+        'rejected',
+        'suspended'
+    )
+);

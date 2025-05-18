@@ -5,6 +5,7 @@ import { AuthService } from "../../services/authService";
 import { LoginDTO } from "./loginDto";
 import { PasswordService } from "../../../../../shared/services/passwordService";
 import { Session } from "../../../domain/entities/session";
+import { ActivationStatus } from "../../../domain/interfaces/interfaces";
 
 jest.mock("../../../../../shared/services/passwordService");
 
@@ -37,6 +38,8 @@ describe("LoginUseCase", () => {
       password: "hashedPassword",
       name: "Test User",
       role: "user",
+      isActive: true,
+      activationStatus: ActivationStatus.APPROVED,
     });
 
     const loginDto: LoginDTO = {
@@ -97,6 +100,8 @@ describe("LoginUseCase", () => {
       password: "hashedPassword",
       name: "Test User",
       role: "user",
+      isActive: true,
+      activationStatus: ActivationStatus.APPROVED,
     });
 
     const loginDto: LoginDTO = {
@@ -120,6 +125,8 @@ describe("LoginUseCase", () => {
       password: "hashedPassword",
       name: "Test User",
       role: "user",
+      isActive: true,
+      activationStatus: ActivationStatus.APPROVED,
     });
 
     const loginDto: LoginDTO = {

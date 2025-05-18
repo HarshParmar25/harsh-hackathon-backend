@@ -8,6 +8,8 @@ export class CreateUserMapper {
       password_hash: user.getPassword(),
       role: user.getRole(),
       image_url: user.getImageUrl(),
+      is_active: user.getIsActive(),
+      activation_status: user.getActivationStatus(),
     };
   }
 
@@ -19,6 +21,8 @@ export class CreateUserMapper {
       password: raw.password_hash,
       role: raw.role,
       imageUrl: raw.image_url,
+      isActive: raw.is_active,
+      activationStatus: raw.activation_status,
     });
   }
 }

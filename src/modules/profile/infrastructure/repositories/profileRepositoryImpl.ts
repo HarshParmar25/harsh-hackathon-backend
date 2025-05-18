@@ -10,7 +10,7 @@ export class ProfileRepositoryImpl implements IProfileRepository {
   async findByUserId(userId: number): Promise<Profile | null> {
     // Get user info
     const userQuery = `
-      SELECT * FROM users WHERE id = $1
+      SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL
     `;
     const userResult = await DatabaseManager.query(userQuery, [userId]);
     if (!userResult[0]) return null;

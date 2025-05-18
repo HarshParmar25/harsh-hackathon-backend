@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { ActivationStatus } from "../interfaces/interfaces";
 
 interface UserProps {
   id?: number;
@@ -7,6 +8,8 @@ interface UserProps {
   password: string;
   role: string;
   imageUrl?: string;
+  isActive: boolean;
+  activationStatus: ActivationStatus;
 }
 export class User {
   private props: UserProps;
@@ -36,5 +39,13 @@ export class User {
 
   getImageUrl() {
     return this.props.imageUrl;
+  }
+
+  getActivationStatus() {
+    return this.props.activationStatus;
+  }
+
+  getIsActive() {
+    return this.props.isActive;
   }
 }

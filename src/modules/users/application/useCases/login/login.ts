@@ -3,6 +3,7 @@ import { LoginDTO, LoginResponse } from "./loginDto";
 import { AuthService } from "../../services/authService";
 import { LoginResponseMapper } from "./loginResponseMapper";
 import { PasswordService } from "../../../../../shared/services/passwordService";
+import { ActivationStatus } from "../../../domain/interfaces/interfaces";
 
 export class LoginUseCase {
   constructor(private readonly userRepository: IUserRepository, private readonly authService: AuthService) {}
@@ -11,6 +12,10 @@ export class LoginUseCase {
     const user = await this.userRepository.findByEmail(dto.email);
     if (!user) {
       throw new Error("Invalid credentials");
+    }
+
+    if (user.getActivationStatus() === ActivationStatus.PENDING) {
+      throw new Error("Your account is pending verification. You will be notified once approved.");
     }
 
     const isPasswordValid = await PasswordService.verify(dto.password, user.getPassword());

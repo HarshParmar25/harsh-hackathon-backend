@@ -5,6 +5,7 @@ import { AuthService } from "../../services/authService";
 import { SignupDTO } from "./signupDto";
 import { PasswordService } from "../../../../../shared/services/passwordService";
 import { Session } from "../../../domain/entities/session";
+import { ActivationStatus } from "../../../domain/interfaces/interfaces";
 
 jest.mock("../../../../../shared/services/passwordService");
 
@@ -44,6 +45,8 @@ describe("SignupUseCase", () => {
       email: signupDto.email,
       password: "hashedPassword",
       role: signupDto.role,
+      isActive: true,
+      activationStatus: ActivationStatus.APPROVED,
     });
 
     const mockSession = new Session({
@@ -94,6 +97,8 @@ describe("SignupUseCase", () => {
       email: signupDto.email,
       password: "hashedPassword",
       role: "user",
+      isActive: true,
+      activationStatus: ActivationStatus.APPROVED,
     });
 
     mockUserRepository.findByEmail.mockResolvedValue(existingUser);
@@ -117,6 +122,8 @@ describe("SignupUseCase", () => {
       email: signupDto.email,
       password: "hashedPassword",
       role: signupDto.role,
+      isActive: true,
+      activationStatus: ActivationStatus.APPROVED,
     });
 
     mockUserRepository.findByEmail.mockResolvedValue(null);
