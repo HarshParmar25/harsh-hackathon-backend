@@ -1,6 +1,10 @@
 import { IAdminRepository } from "../../../repositories/adminRepository";
 import { DeleteMemberDto, DeleteMemberResponse } from "./deleteMemberDto";
 
+interface whatTheHeckInterface {
+ test: boolean
+}
+
 export class DeleteMemberUseCase {
   constructor(private readonly adminRepository: IAdminRepository) {}
 
